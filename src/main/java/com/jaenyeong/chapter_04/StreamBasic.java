@@ -10,7 +10,7 @@ import static java.util.stream.Collectors.toList;
 
 public class StreamBasic {
 
-	public static void main(String... args) {
+	public static void main(String[] args) {
 		// 자바 7
 		getLowCaloricDishesNamesInJava7(Dish.menu).forEach(System.out::println);
 
