@@ -6,7 +6,7 @@ import java.util.List;
 
 public class FilteringApples {
 
-	public static void main(String... args) {
+	public static void main(String[] args) {
 		List<Apple> inventory = Arrays.asList(
 				new Apple(80, Color.GREEN),
 				new Apple(155, Color.GREEN),
