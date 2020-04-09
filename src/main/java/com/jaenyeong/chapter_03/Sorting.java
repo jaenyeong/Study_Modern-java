@@ -9,7 +9,7 @@ import static java.util.Comparator.comparing;
 
 public class Sorting {
 
-	public static void main(String... args) {
+	public static void main(String[] args) {
 		// 1
 		List<Apple> inventory = new ArrayList<>();
 		inventory.addAll(Arrays.asList(

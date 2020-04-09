@@ -7,7 +7,7 @@ import java.util.List;
 
 public class Lamdas {
 
-	public static void main(String... args) {
+	public static void main(String[] args) {
 		// 간단한 예제
 		Runnable r = () -> System.out.println("Hello!");
 		r.run();

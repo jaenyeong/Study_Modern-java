@@ -7,7 +7,7 @@ import java.io.IOException;
 public class ExecuteAround {
 	private static final String FILE = ExecuteAround.class.getResource("./data.txt").getFile();
 
-	public static void main(String... args) throws IOException {
+	public static void main(String[] args) throws IOException {
 		// 더 유연하게 리팩토링할 메서드
 		String result = processFileLimited();
 		System.out.println(result);
