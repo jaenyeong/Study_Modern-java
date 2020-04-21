@@ -1271,5 +1271,892 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
         .limit(20)
         .forEach(t -> System.out.println("(" + t[0] + "," + t[1] + ")"));
     ```
+---
+
+## chapter 06 - 스트림으로 데이터 수집
+* 스트림은 게으른 반복자
+* 중간 연산은 한 스트림을 다른 스트림으로 변환하는 연산, 여러 연산을 연결
+  * 스트림 파이프라인을 구성하며, 스트림의 요소를 소비하지 않음
+* 스트림의 요소를 소비해서 최종 결과를 도출
+  * 스트림 파이프라인을 최적화하면서 계산 과정을 짧게 생략하기도 함
+* collect와 컬렉터로 구현할 수 있는 질의 예제
+  * 통화별로 트랜잭션을 그룹화한 다음에 해당 통화로 일어난 모든 트랜잭션 합계를 계산하기
+  * 트랜잭션을 비싼 트랜잭션과 저럼한 트랜잭션 두 그룹으로 분류하기(Map<Boolean, List<Transaction>> 반환)
+  * 트랜잭션을 도시 등 다수준으로 그룹화하기
+    * 그리고 각 트랜잭션이 비싼지 저렴한지 구분하기(Map<String, Map<Boolean, List<Transaction>>> 반환)
+
+### 컬렉터란 무엇인가?
+* 함수형 프로그래밍에서는 '무엇'을 원하는지 직접 명시할 수 있어서 어떤 방법으로 이를 얻을지는 신경 쓸 필요가 없음
+* 이전 예제에서 collect 메서드로 Collector 인터페이스 구현을 전달
+  * Collector 인터페이스 구현은 스트림의 요소를 어떤 식으로 도출할지 지정
+  * 5장에서 '각 요소를 리스트로 만들어라'를 의미하는 toList를 Collector 인터페이스의 구현으로 사용함
+  * 여기서는 groupingBy를 이용 '각 키 버킷 그리고 각 키 버킷에 대응하는 요소 리스트를 값으로 포함하는 맵을 만드는 동작' 수행
+* 다수준(multilevel)으로 그룹화를 수행할 때 명령형 프로그래밍과 함수형 프로그래밍의 차이점이 더욱 두드러짐
+  * 명령형 코드에서는 문제글 해결하는 과정에서 다중 루프와 조건문을 추가하며 가독성, 유지보수성이 크게 떨어짐
+  * 함수형 프로그래밍에서는 필요한 컬렉터를 쉽게 추가할 수 있음
+  
+### 고급 리듀싱 기능을 수행하는 컬렉터
+* 훌륭한 함수형 API는 높은 수준의 조합성과 재사용성이 장점
+* collect로 결과를 수집하는 과정을 간단, 유연한 방식으로 정의할 수 있다는 점이 컬렉터의 장점
+  * 구체적으로 스트림에 collect를 호출하면서 스트림의 요소(컬렉터로 파라미터화된)에 리듀싱 연산이 수행됨
+* 보통 함수를 요소로 변환할 때는 컬렉터를 적용하며 최종 결과를 저장하는 자료구조에 값을 누적함
+  * toList처럼 데이터 자체를 변환하는 것 보다는 데이터 저장 구조를 변환할 때가 많음
+* Collectors에서 제공하는 메서드의 기능
+  * 스트림 요소를 하나의 값으로 리듀스하고 요약
+  * 요소 그룹화
+  * 요소 분할
+
+### 리듀싱과 요약
+* 기존 : ``` long howManyDishes = menu.stream().collect(Collectors.counting()); ```
+* 불필요과정 생략 : ``` long howManyDishes = menu.stream().count(); ```
+* counting 컬렉터는 다른 컬렉터와 함께 사용할 때 위력을 발휘함
+* 예제 코드는 Collectors 클래스의 정잭 팩토리 메서드를 모두 임포트 했다고 가정함
+
+* 스트림 값에서 최댓값과 최솟값 검색
+  * 최댓값 : Collectors.maxBy
+  * 최솟값 : Collectors.minBy
+  * 위 두 컬렉터는 스트림의 요소를 비교하는데 사용할 Comparator를 인수로 받음
+    ```
+    Comparator<Dish> dishCaloriesComparator = Comparater.comparingInt(Dish:;getCalories);
+    ```
+    ```
+    Optional<Dish> mostCalories = menu.stream().collect(maxBy(dishCaloriesComparator));
+    ```
+  * 스트림에 있는 객체의 숫자 필드의 합계나 평균 등을 반환하는 연산에도 리듀싱 기능이 자주 사용됨
+    * 이러한 연산을 요약(summarization)연산이라 함
+
+* 요약 연산
+  * Collectors 클래스는 Collectors.summingInt라는 특별한 요약 팩토리 메서드 제공
+  * 메뉴 리스트의 총 칼로리를 계산하는 코드
+    ``` int totalCalories = menu.stream().collect(summingInt(Dish::getCalories)); ```
+  * Collectors.summingLong과 Collectors.summingDouble 메서드는 같은 방식으로 동작하며 long, double 형식의 데이터로 요약한다는 점만 다름
+  * 단순 합계 외에 평균값 계산 등의 연산도 요약 기능으로 제공됨
+    * averagingInt, averagingLong, averagingDouble 등
+      ``` double avgCalories = menu.stream().collect(averagingInt(Dish::getCalories)); ```
+  * 여러 개의 연산을 한 번에 수행할 때
+    ``` IntSummaryStatistics menuStatistics = menu.stream().collect(summarizingInt(Dish::getCalories)); ```
+    * 위 코드 실행 후 출력(예시)
+      ``` IntSummaryStatistics{count=9, sum=4300, min=120, average=477.777778, max=800} ```
+    * LongSummaryStatistics, DoubleSummaryStatistics 클래스도 있음
+
+* 문자열 연결
+  * 컬렉터에 joining 팩토리 메서드를 이용하면 스트림의 각 객체에 toString 메서드를 호출, 추출한 모든 문자열을 하나의 문자열로 연결해서 반환함
+    ``` String shortMenu = menu.stream().map(Dish::getName).collect(joining()); ```
+  * 객체가 toString() 메서드를 포함하고 있다면 map으로 추출하는 과정 생략 가능
+    ``` String shortMenu = menu.stream().collect(joining()); ```
+  * 위 두 코드 모두 아래 결과 도출
+    ``` porkbeefchickenfrench friesriceseason fruitpizzaprawnssalmon ```
+  * 콤마로 구분
+    ``` String shortMenu = menu.stream().collect(joining(", ")); ```
+    ``` pork, beef, chicken, french fries, rice, season fruit, pizza, prawns, salmon ```
+  * joining 메서드는 내부적으로 StringBuilder를 이용해서 문자열을 하나로 만듦
+
+* 범용 리듀싱 요약 연산
+  * 위 컬렉터들은 범용 Collectors.reducing 팩토리 메서드로도 정의 가능
+  * 범용 팩토리 메서드 대신 특화된 컬렉터를 사용한 이유는 프로그래밍적 편의성 때문
+    * 하지만 편의성 뿐만 아니라 가독성도 중요함
+  * 예를 들어 reducing 메서드로 만들어진 컬렉터로도 메뉴의 모든 칼로리 합계를 계산할 수 있음
+    ``` int totalCalories = menu.stream().collect(reducing(0, Dish::getCalories, (i, j) -> i + j)); ```
+    * reducing은 인수 세 개를 받음
+    * 첫 번째 인수는 리듀싱 연산의 시작값이거나 스트림에 적합한 인수가 없을 때 반환 값
+      * 숫자 합계에서는 인수가 없을 때 반환값으로 0이 적합
+    * 두 번째 인수는 요리를 칼로리 정수로 변환할 때 사용한 변환 함수
+    * 세 번째 인수는 같은 종류의 두 항목을 하나의 값으로 더하는 BinaryOperator
+  * 한 개의 인수를 가진 reducing 버전을 이용해 찾는 방법
+    ```
+    Optional<Dish> mostCalories = 
+        menu.stream().collect(reducing((d1, d2) -> d1.getCalories() > d2.getCalories() ? d1 : d2));
+    ```
+    * 한 개의 인수를 갖는 reducing 팩토리 메서드는 세 개의 인수를 갖는 reducing 메서드에서 스트림의 첫 번째 요소를 시작 요소  
+      즉 첫 번째 인수로 받으며, 자신을 그대로 반환하는 항등 함수(identity function)를 두 번째 인수로 받는 상황에 해당
+  
+* collect와 reduce
+  ```
+  Stream<Integer> stream = Arrays.asList(1, 2, 3, 4, 5, 6).stream();
+  List<Integer> numbers = 
+      stream.reduce(
+          new ArrayList<Integer>(),
+          (List<Integer> l, Integer e) -> {
+              l.add(e);
+              return l;
+          }, 
+          (List<Integer> l1, List<Integer> l2) -> {
+              l1.addAll(l2); return l1;
+          }
+      );
+  ```
+  * 위 코드는 의미론적인 문제, 실용성 문제가 있음
+    * 의미론적 문제
+      * collect 메서드는 도출하려는 결과를 누적하는 컨테이너를 바꾸도록 설계된 메서드
+      * reduce는 두 값을 하나로 도출하는 불변형 연산
+      * reduce 메서드는 누적자로 사용된 리스트를 변환시키므로 위 코드는 reduce를 잘못 활용한 예
+    * 실용성문제
+      * 여러 스레드가 동시에 같은 데이터 구조체를 고치면 리스트 자체가 망가져버리므로 리듀싱 연산을 병렬로 수행할 수도 없다는 점
+      * 이 문제를 해결하려면 매번 새로운 리스트를 할당해야 하고 따라서 객체를 할당하느라 성능이 저하될 것
+      * 가변 컨테이너 관련 작업이면서 병렬성을 확보하려면 collect 메서드로 리듀싱 연산을 구현하는 것이 바람직
+
+* 컬렉션 프레임워크 유연성 : 같은 연산도 다양한 방식으로 수행 가능
+  * reducing 컬렉터를 사용한 이전 예제에 람다 표현식 대신 Integer 클래스의 sum 메서드 참조 이용
+    ``` int totalCalories = menu.stream().collect(reducing(0, Dish::getCalories, Ieteger::sum)); ```
+  * counting 컬렉터도 세 개의 인수를 갖는 reducing 팩토리 메서드를 이용해서 구현할 수 있음
+    * 다음 코드처럼 스트림의 Long 객체 형식의 요소를 1로 변환한 다음에 모두 더할 수 있음
+      ```
+      public static <T> Collector<T, ?, Long> counting() {
+          return reducing(0L, e -> 1L, Long::sum);
+      }
+      ```
+      * 제네릭 와일드카드 '?' 사용법
+        * 위 예제에서 counting 팩토리 메서드가 반환하는 컬렉터 시그니처의 두 번째 제네릭 형식으로 와일드카드 '?'가 사용됨
+        * 이 예제에서 '?'는 컬렉터의 누적자 형식이 알려지지 않았음을, 즉 누적자의 형식이 자유로움을 의미함
+        * Collectors 클래스에서 원래 정의된 메서드 시그니처를 그대로 사용했을 뿐
+  * 5장에서 컬렉터를 이용하지 않는 방법
+    ```
+    int totalCalories = menu.stream().map(Dish::getCalories).reduce(Integer::sum).get();
+    ```
+    * reduce(Integer::sum)도 빈 스트림과 관련한 널 문제를 피할 수 있도록 int가 아닌 Optional<Integer>를 반환
+    * 그리고 get으로 Optional 객체 내부의 값을 추출함
+      * 여기서 요리 스트림은 비어이지 않다는 사실을 알고 있으므로 get을 자유롭게 사용할 수 있음
+      * 하지만 Optional의 값을 얻어올 때 orElse, orElseGet 등을 이용해 가져오는 것이 좋음
+    * 스트림을 IntStream으로 매핑한 다음, sum 메서드를 호출하는 방법도 가능
+      ``` 
+      int totalCalories = menu.stream().mapToInt(Dish::getCalories).sum();
+      ```
+
+* 자신의 상황에 맞는 최적의 해법 선택
+  * 함수형 프로그래밍에서는 하나의 연산을 다양한 방법으로 해결할 수 있음
+  * 스트림 인터페이스에서 직접 제공하는 메서드를 비용하는 것에 비해 컬렉터를 이용하는 코드가 더 복잡하다는 사실을 보여줌
+    * 코드가 좀 더 복잡한 대신 재사용성과 커스터마이즈 가능성을 제공하는 높은 수준의 추상화와 일반화를 얻을 수 있음
+  * 문제를 해결할 수 있는 다양한 해결 방법을 확인 후 가장 일반적으로 문제에 특화된 해결책을 고르는 것이 바람직 (가독성과 성능 둘 다 잡기)
+  * 위 예제에서 메뉴의 전체 칼로리를 계산하는 예제는 IntStream을 사용한 마지막 방법이 가독성이 가장 좋고 간결함
+    * IntStream 덕분에 자동 언박싱(auto unboxing) 연산을 수행하거나 Integer를 int로 변환하는 과정을 피할 수 있으므로 성능까지 좋음
     
+### 그룹화
+* Collectors.groupingBy 팩토리 메서드를 이용하여 쉽게 그룹화할 수 있음
+  ``` Map<Dish.Type, List<Dish> dishesByType = menu.stream().collect(groupingBy(Dish::getType)); ```
+  * 결과
+    ``` {FISH=[prawns, salmon], OTHER=[french fries, rice, season fruit, pizza], MEAT=[pork, beef, chicken]} ```
+  * 스트림의 각 요리에서 Dish.Type과 일치하는 모든 요리를 추출하는 함수를 groupingBy 메서드로 전달
+    * 이 함수를 기준으로 그룹화되므로 이를 분류함수(classification function)라고 부름
+  * 단순한 속성 접근자 대신 더 복잡한 분류 기준이 필요한 상황에서는 메서드 참조를 분류 함수로 사용할 수 없음
+    * 예를 들어 400칼로리 이하를 'diet', 400~700칼로리를 'normal', 700칼로리 초과를 'fat' 요리로 분류한다고 가정
+    * 이때 Dish 클래스에는 연산에 필요한 메서드가 없으므로 참조를 분류 함수로 사용할 수 없음
+    * 따라서 메서드 참조 대신 람다 표현식으로 필요한 로직 구현
+      ```
+      public enum CaloricLevel {DIET, NORMAL, FAT}
+      Map<CaloricLevel, List<Dish>> dishesByCalroicLevel = 
+            menu.stream()
+                .collect(groupingBy(dish -> {
+                    if (dish.getCalories() <= 400) return CaloricLevel.DIET;
+                    else if (dish.getCalories() <= 700) return CaloricLevel.NORMAL;
+                    else return CaloricLevel.FAT;
+                    })
+                );
+      ```
+
+* 그룹화된 요소 조작
+  * 요소를 그룹화 한 다음에 각 결과 그룹의 요소를 조작하는 연산 필요
+    * 예를 들어 500칼로리가 넘는 요리만 필터한다고 가정
+      ```
+      Map<Dish.Type, List<Dish>> caloricDishesByType =
+            menu.stream()
+                .filter(dish -> dish.getCalories() > 500)
+                .collect(groupingBy(Dish::getType));
+      ```
+      * 결과
+        ``` {OTHER=[french fries, pizza], MEAT=[pork, beef]} ```
+    * 위 예제는 FISH 타입 데이터가 필터링에 걸리지 않아 결과 맵에서 해당 키(FISH) 자체가 사라짐
+    * Collectors 클래스는 일반적인 분류 함수에 Collector 형식의 두 번째 인수를 갖도록 groupingBy 팩토리 메서드를 오버로드해 이 문제를 해결함
+      ```
+      Map<Dish.Type, List<Dish>> caloricDishesByType =
+            menu.stream()
+                .collect(groupingBy(Dish::getType, filtering(dish -> dish.getCalories() > 500, toList())));
+      ```
+      * 결과
+        ``` {OTHER=[french fries, pizza], MEAT=[pork, beef], FISH=[]} ```
+      * filtering 메서드는 Collectors 클래스의 또 다른 정적 팩토리 메서드로 프레디케이트를 인수로 받음
+        * 이 프레디케이트로 각 그룹의 요소와 필터링 된 요소를 재그룹화
+  * 그룹화된 항목을 조작하는 다른 유용한 기능 중 또 다른 하나로 매핑 함수를 이용해 요소를 변환하는 작업이 있음
+    * 매핑 함수와 각 항목에 적용한 함수를 모으는 데 사용하는 또 다른 컬렉터를 인수로 받는 mapping 메서드 제공
+      * 예를 들어 이 함수를 이용해 그룹의 각 요리를 관련 이름 목록으로 변환할 수 있음
+        ```
+        Map<Dish.Type, List<String>> dishNamesByTpe = 
+            menu.stream().collect(groupingBy(Dish::getType, mapping(Dish::getName, toList())));
+        ```
+      * flatMapping 컬렉터
+        ```
+        public static final Map<String, List<String>> dishTags = new HashMap<>();
+        
+        dishTags.put("pork", asList("greasy", "salty"));
+        dishTags.put("beef", asList("salty", "roasted"));
+        dishTags.put("chicken", asList("fried", "crisp"));
+        dishTags.put("french fries", asList("greasy", "fried"));
+        dishTags.put("rice", asList("light", "natural"));
+        dishTags.put("season fruit", asList("fresh", "natural"));
+        dishTags.put("pizza", asList("tasty", "salty"));
+        dishTags.put("prawns", asList("tasty", "roasted"));
+        dishTags.put("salmon", asList("delicious", "fresh"));
+        
+        Map<Dish.Type, Set<String>> dishNamesByTpe = 
+            menu.stream()
+                .collect(groupingBy(
+                                    Dish::getType, 
+                                    flatMapping(dish -> dishTags.get(dish.getName()).stream(), 
+                                    toSet())));
+        ```
+        * 각 요리에서 태그 리스트를 얻어야 함
+          * 두 수준의 리스트를 한 수준으로 평면화하려면 flatMap 수행해야 함
+          * 이전처럼 각 그룹에 수행한 flatMapping 연산 결과를 수집해서 리스트가 아니라 집합으로 그룹화해 중복 태그를 제거함
+        * 결과 
+          ``` 
+          {MEAT=[salty, greasy, roasted, fried, crisp],  
+           FISH=[roasted, tasty, fresh, delicious],  
+           OTHER=[salty, greasy, natural, light, tasty, fresh, fried]}
+          ```
+
+* 다수준 그룹화
+  * 두 인수를 받는 팩토리 메서드 Collectors.groupingBy를 이용해 항목을 다수준으로 그룹화할 수 있음
+    * Collectors.groupingBy는 일반적인 분류 함수와 컬렉터를 인수로 받음
+    * 바깥쪽 groupingBy 메서드에 스트림의 항목을 분류할 두 번째 기준을 정의하는 내부 groupingBy를 전달, 두 수준으로 스트림의 항목을 그룹화할 수 있음
+    ```
+    Map<Dish.Type, Map<CaloricLevel, List<Dish>>> dishesByTypeCaloricLevel =
+        menu.stream()
+            .collect(groupingBy(Dish::getType, // 첫 번째 수준의 분류 함수
+                        groupingBy(dish -> {   // 두 번째 수준의 분류 함수
+                            if (dish.getCalories() <= 400) return CaloricLevel.DIET;
+                            else if (dish.getCalories() <= 700) return CaloricLevel.NORMAL;
+                            else return CaloricLevel.FAT; 
+                        })
+            )
+        );
+    ```
+    * 결과
+      ```
+      {MEAT={DIET=[chicken], NORMAL=[beef], FAT=[pork]}, FISH={DIET=[prawns], NORMAL=[salmon]}, 
+      OTHER={DIET=[rice, seasonal fruit], NORMAL=[french fries, pizza]}}
+      ```
+    * 다수준 그룹화 연산은 다양한 수준으로 확장할 수 있음
+    * n수준 그룹화의 결과는 n수준 트리 구조로 표현되는 n 수준 맵이 됨
+    * 보통 groupingBy 연산을 버킷 개념으로 생각하면 쉬움
+      * 첫 번째 groupingBy는 각 키의 버킷을 만듦
+      * 그리고 준비된 각각의 버킷을 서브스트림 컬렉터로 채워가기를 반복하면서 n수준 그룹화를 달성
+
+* 서브그룹으로 데이터 수집
+  * 위 소스에서 첫 번째 groupingBy로 넘겨주는 컬렉터의 형식은 제한이 없음
+    * 예를 들어 다음 코드처럼 groupingBy 컬렉터에 두 번째 인수로 counting 컬렉터를 전달해서 메뉴에서 요리의 수를 종류별로 계산할 수 있음
+      ```
+      Map<Dish.Type, Long> typescount = menu.stream().collect(groupingBy(Dish::getType, counting()));
+      ```
+      * 결과
+        ``` {MEAT=3, FISH=2, OTHER=4} ```
+    * 분류 함수 한 개의 인수를 갖는 groupingBy(f)는 사실 groupingBy(f, toList())의 축약형
+      * 요리의 종류를 분류하는 컬렉터로 메뉴에서 가장 높은 칼로리를 가진 요리를 찾는 프로그램도 다시 구현 가능
+        ```
+        Map<Dish.Type, Optional<Dish>> mostCaloricByType = 
+            menu.stream().collect(groupingBy(Dish::getType, maxBy(comparingInt(Dish::getCalories))));
+        ```
+        * 결과
+          ``` {FISH=Optional[salmon]}, OTHER=Optional[pizza], MEAT=Optional[pork]} ```
+      * 팩토리 메서드 maxBy가 생성하는 컬렉터의 결과 형식에 따라 맵의 값이 Optional 형식이 되었음  
+        실제 메뉴의 요리중 Optional.empty()를 값으로 갖는 요리는 존재하지 않음  
+        처음부터 존재하지 않는 요리의 키는 맵에 추가되지 않기 때문  
+        groupingBy 컬렉터는 스트림의 첫 번째 요소를 찾은 후에야 그룹화 맵에 새로운 키를 (게으르게) 추가함  
+        리듀싱 컬렉터가 반환하는 형식을 사용하는 상황이므로 굳이 Optional 래퍼를 사용할 필요가 없음
+  * 컬렉터 결과를 다른 형식에 적용
+    * 위 그룹화 연산에서 맵에서 Optional 삭제
+    * 즉 팩토리 메서드 Collectors.collectingAndThen으로 컬렉터가 반환한 결과를 다른 형식으로 활용할 수 있음
+      ```
+      Map<Dish.Type, Dish> mostCaloricByType = 
+          menu.stream()
+            .collect(groupingBy(Dish::getType, // 분류 함수
+                            collectingAndThen(maxBy(comparingInt(Dish::getCalories)), // 감싸인 컬렉터
+                             Optional::get))); // 변환 함수
+      ```
+    * collectingAndThen 팩토리 메서드는 적용할 컬렉터와 변환 함수를 인수로 받아 다른 컬렉터를 반환
+    * 반환되는 컬렉터는 기존 컬렉터의 래퍼 역할을 하며 collect의 마지막 과정에서 변환 함수로 자신이 반환하는 값을 매핑함
+      * 리듀싱 컬렉터는 절대 Optional.empty()를 반환하지 않으므로 안전한 코드
+      * 위 예제에서 maxBy로 만들어진 컬렉터가 감싸지는 컬렉터며 변환 함수 Optional::get으로 반환된 Optional에 포함된 값을 추출
+        * 결과
+          ``` {FISH=salmon, OTHER=pizza, MEAT=pork} ```
+
+* groupingBy와 함께 사용하는 다른 컬렉터 예제
+  * 일반적으로 스트림에서 같은 그룹으로 분류된 모든 요소에 리듀싱 작업을 수행할 때는 팩토리 메서드 groupingBy에 두 번째 인수로 전달한 컬렉터를 사용함
+    * 예를 들어 메뉴에 있는 모든 요리의 칼로리 합계를 구하려고 만든 컬렉터를 재사용할 수 있음
+      ```
+      Map<Dish.Type, Integer> totalCaloriesByType =
+        menu.stream().collect(groupingBy(Dish::getType, summingInt(Dish::getCalories)));
+      ```
+  * mapping 메서드는 스트림의 인수를 변환하는 함수와 변환 함수의 결과 객체를 누적하는 컬렉터를 인수로 받음
+    * 입력 요소를 누적하기 전에 매핑 함수를 적용해서 다양한 형식의 객체를 주어진 형식의 컬렉터에 맞게 변환하는 역할을 함
+    * 예를 들어 각 요리 형식에 존재하는 모든 CaloricLevel 값을 알고 싶을 때
+      ```
+      Map<Dish.Type, Set<CaloricLevel>> caloricLevelsByType = 
+          menu.stream().collect(
+                groupingBy(Dish::getType, mapping(dish -> {
+                    if (dish.getCalories() <= 400) return CaloricLevel.DIET;
+                    else if (dish.getCalories() <= 700) return CaloricLevel.NORMAL;
+                    else return CaloricLevel.FAT; },
+                toSet())));
+      ```
+      * 결과
+        ``` {OTHER=[DIET, NORMAL], MEAT=[DIET, NORMAL, FAT], FISH=[DIET, NORMAL]} ```
+      * toCollection 이용
+        ```
+        Map<Dish.Type, Set<CaloricLevel>> caloricLevelsByType = 
+            menu.stream().collect(
+                  groupingBy(Dish::getType, mapping(dish -> {
+                      if (dish.getCalories() <= 400) return CaloricLevel.DIET;
+                      else if (dish.getCalories() <= 700) return CaloricLevel.NORMAL;
+                      else return CaloricLevel.FAT; },
+                  toCollection(HashSet::new))));
+        ```
+
+### 분할
+* 분할은 분할 함수(partitioning function)라 불리는 프레디케이트를 분류 함수로 사용하는 특수한 그룹화 기능
+  * 분할 함수는 불리언을 반환, 맵의 키 형식은 Boolean
+  * 결과적으로 그룹화 맵은 최대 두 개의 그룹으로 분류됨
+    * 예를 들어 채식 요리와 아닌 요리를 분류
+      ```
+      Map<Boolean, List<Dish>> partitionedMenu = 
+            menu.stream().collect(partitioningBy(Dish::isVegetarian));
+      ```
+      * 결과
+        ``` {false=[pork, beef, chicken, prawns, salmon], true=[french fries, rice, season fruit, pizza]} ```
+      ```
+      List<Dish> vegetarianDishes = partitionedMenu.get(true);
+      ```
+      * 프레디케이트로 필터링한 다음 별도의 리스트에 결과를 수집해도 같은 결과를 얻을 수 있음
+        ```
+        List<Dish> vegetarianDishes = 
+                menu.stream().filter(Dish::isVegetarian).collect(toList());
+        ```
+
+* 분할의 장점
+  * 참, 거짓 두 가지 요소의 스트림 리스트를 모두 유지한다는 것이 분할의 장점
+  * 컬렉터를 두 번째 인수로 전달할 수 있는 오버로드된 버전의 partitioningBy 메서드
+    ```
+    Map<Boolean, Map<Dish.Type, List<Dish>>> vegetarianDishesByType = 
+        menu.stream().collect(partitioningBy(Dish::isVegetarian, // 분할 함수
+                                groupingBy(Dish::getType))); // 두 번째 컬렉터
+    ```
+    * 결과
+      ```
+      {false={FISH=[prawns, salmon], MEAT=[pork, beef, chicken]}, 
+      true={OTHER=[french fries, rice, season fruit, pizza]}}
+      ```
+  * 채식 요리와 아닌 요리 각각 그룹에서 가장 칼로리가 높은 요리 찾기
+    ```
+    Map<Boolean, Dish> mostCaloricPartitionedByVegetarian = 
+        menu.stream().collect(partitioningBy(Dish::isVegetarian,
+                                collectingAndThen(maxBy(comparingInt(Dish::getCalories)),
+                                Optional::get))); 
+    ```
+    * 결과
+      ``` {false=pork, true=pizza} ```
+
+* 숫자를 소수와 비소수로 분할
+  * 정수 n을 인수로 받아 2에서 n까지의 자연수를 소수(prime)와 비소수(nonprime)로 나누는 프로그램 구현
+    ```
+    public boolean isPrime(int candidate) {
+        return IntStream.range(2, candidate) // 2부터 candidate 미만 사이의 자연수를 생성
+                .noneMatch(i -> candidate % i == 0); // 스트림의 모든 정수로 candidate를 나눌 수 없으면 참을 반환
+    }
+    ```
+  * 소수의 대상을 주어진 수의 제곱근 이하의 수로 제한할 수 있음
+    ```
+    public boolean isPrime(int candidate) {
+        int candiateRoot = (int) Math.sqrt((double) candidate);
+        return IntStream.rangeClosed(2, candiateRoot)
+                .noneMatch(i -> candidate % i == 0);
+    ```
+  * 이제 n개의 숫자를 포함하는 스트림을 만든 다음에 우리가 구현한 isPrime 메서드를 프레디케이트로 이용하고  
+    partitioningBy 컬렉터로 리듀스해서 소수와 비소수로 분류할 수 있음
+    ```
+    public Map<Boolean, List<Integer>> partitionPrimes(int n) {
+        return IntStream.rangeClosed(2, n)
+                .boxed()
+                .collect(partitioningBy(candidate -> isPrime(candidate)));
+    }
+    ```
+
+### Collectors 클래스의 정적 팩토리 메서드
+* 모든 컬렉터는 Collector 인터페이스를 구현함
+* toList
+  * 반환 형식 : List<T>
+  * 사용 예제 : 스트림의 모든 항목을 리스트로 수집
+  * 활용 예 : List<Dish> dishes = menuStream.collect(toList());
+* toSet
+  * 반환 형식 : Set<T>
+  * 사용 예제 : 스트림의 모든 항목을 중복이 없는 집합으로 수집
+  * 활용 예 : Set<Dish> dishes = menuStream.collect(toSet());
+* toCollection
+  * 반환 형식 : Collection<T>
+  * 사용 예제 : 스트림의 모든 항목을 발행자가 제공하는 컬렉션으로 수집
+  * 활용 예 : Collection<Dish> dishes = menuStream.collect(toCollection(), ArrayList::new);
+* counting
+  * 반환 형식 : Long
+  * 사용 예제 : 스트림의 항목 수 계산
+  * 활용 예 : long howManyDishes = menuStream.collect(counting());
+* summingInt
+  * 반환 형식 : Integer
+  * 사용 예제 : 스트림의 항목에서 정수 프로퍼티값을 더함
+  * 활용 예 : int totalCalories = menuStream.collect(summingInt(Dish::getCalories));
+* summarizingInt
+  * 반환 형식 : IntSummaryStatistics
+  * 사용 예제 : 스트림 내 항목의 최댓값, 최솟값, 합계, 평균 등의 정수 정보 통계 수집
+  * 활용 예 : IntSummaryStatistics menuStatistics = menuStream.collect(summarizingInt(Dish::getCalories));
+* joining
+  * 반환 형식 : String
+  * 사용 예제 : 스트림의 각 항목에 toString 메서드를 호출한 결과 문자열 연결
+  * 활용 예 : String shortMenu = menuStream.map(Dish::getName).collect(joining(", "));
+* maxBy
+  * 반환 형식 : Optional<T>
+  * 사용 예제 : 주어진 비교자를 이용해서 스트림의 최댓값 요소를 Optional로 감싼 값을 반환. 스트림에 요소가 없을 때는 Optional.empty() 반환
+  * 활용 예 : Optional<Dish> fattest = menuStream.collect(maxBy(comparingInt(Dish::getCalories)));
+* minBy
+  * 반환 형식 : Optional<T>
+  * 사용 예제 : 주어진 비교자를 이용해서 스트림의 최솟값 요소를 Optional로 감싼 값을 반환. 스트림에 요소가 없을 때는 Optional.empty() 반환
+  * 활용 예 : Optional<Dish> lightest = menuStream.collect(minBy(comparingInt(Dish::getCalories)));
+* reducing
+  * 반환 형식 : 'The type produced by the reduction operation'
+  * 사용 예제 : 누적자를 초깃값으로 설정한 다음에 BinaryOperator로 스트림의 각 요소를 반복적으로 누적자와 합쳐 스트림을 하나의 값으로 리듀싱
+  * 활용 예 : int totalCalories = menuStream.collect(reducing(0, Dish::getCalories, Integer::sum));
+* collectionAndThen
+  * 반환 형식 : 'The type returned by the transforming function'
+  * 사용 예제 : 다른 컬렉터를 감싸고 그 결과에 반환 함수 적용
+  * 활용 예 : int howManyDishes = menuStream.collect(collectingAndThen(toList(), List::size));
+* groupingBy
+  * 반환 형식 : Map<K, List<T>>
+  * 사용 예제 : 하나의 프로퍼티값을 기준으로 스트림의 항목을 그룹화하며 기준 프로퍼티값을 결과 맵의 키로 사용
+  * 활용 예 : Map<Dish.Type, List<Dish>> dishesByType = menuStream.collect(groupingBy(Dish::getType));
+* partitionBy
+  * 반환 형식 : Map<Boolean, List<T>>
+  * 사용 예제 : 하나의 프로퍼티값을 기준으로 스트림의 항목을 그룹화하며 기준 프로퍼티값을 결과 맵의 키로 사용
+  * 활용 예 : Map<Boolean, List<Dish>> vegetarianDishes = menuStream.collect(partitioningBy(Dish::isVegetarian));
+    
+### 인터페이스
+* Collector 인터페이스는 리듀싱 연산(컬렉터)을 어떻게 구현할지 제공하는 메서드 집합으로 구성
+* Collector 인터페이스를 구현하는 리듀싱 연산을 만들 수 있음
+* Collector 인터페이스
+  ```
+  public interface Collector<T, A, R> {
+      Supplier<A> supplier();
+      BiConsumer<A, T> accumulator();
+      BinaryOperator<A> combiner();
+      Function<A, R> finisher();
+      Set<Characteristics> characteristics();
+  }
+  ```
+  * 설명
+    * T는 수집될 스트림 항목의 제네릭 형식
+    * A는 누적자, 즉 수집 과정에서 중간 결과를 누적하는 객체 형식
+    * R은 수집 연산 결과 객체의 형식 (항상 그런 것은 아니지만 대개 컬렉션 형식)
+  * 예를 들어 Stream<T>의 모든 요소를 List<T>로 수집하는 toListCollector<T>라는 클래스를 구현할 수 있음
+    ``` public class ToListCollector<T> implements Collector<T, List<T>, List<T>> ```
+
+* Collector 인터페이스 메서드
+  * Characteristics를 제외한 4개의 메서드는 collect 메서드에서 실행하는 함수를 반환
+  * Characteristics 메서드는 collect 메서드가 어떤 최적화(병렬화 등)를 이용해서 리듀싱 연산을 수행할 것인지 결정하도록 돕는 힌트 특성 집합을 제공
+  * supplier 메서드 : 새로운 결과 컨테이너 만들기
+    * supplier 메서드는 빈 결과로 이루어진 Supplier를 반환해야 함
+    * supplier는 수집 과정에서 빈 누적자 인스턴스를 만드는 파라미터가 없는 함수
+    * ToListCollector처럼 누적자를 반환하는 컬렉터에서는 빈 누적자가 비어있는 스트림의 수집 과정의 결과가 될 수 있음
+    * ToListCollector에서 supplier는 빈 리스트를 반환
+      ```
+      public Supplier<List<T>> supplier() {
+          return () -> new ArrayList<T>();
+      }
+      // 생성자 참조 전달
+      public Supplier<List<T>> supplier() {
+          return ArrayList::new;
+      }      
+      ```
+  * accumulator 메서드 : 결과 컨테이너에 요소 추가하기
+    * accumulator 메서드는 리듀싱 연산을 수행하는 함수를 반환함
+    * 스트림에서 n번째 요소를 탐색할 때 두 인수, 즉 누적자(스트림의 첫 n-1개 항목을 수집한 상태)와 n번째 요소를 함수에 적용
+    * 함수의 반환값은 void, 즉 요소를 탐색하면서 적용하는 함수에 의해 누적자 내부상태가 바뀌므로 누적자가 어떤 값인지 단정할 수 없ㅇ므
+    * ToListCollector에서 accumulator가 반환하는 함수는 이미 탐색한 항목을 포함하는 리스트에 현재 항목을 추가하는 연산을 수행함
+      ```
+      public BiConsumer<List<T>, T> accumulator() {
+          return (list, item) -> list.add(item);
+      }
+      // 메서드 참조 이용
+      public BiConsumer<List<T>, T> accumulator() {
+          return List::add;
+      } 
+      ```
+  * finisher 메서드 : 최종 변환값을 결과 컨테이너로 적용하기
+    * finisher 메서드는 스트림 탐색을 끝내고 누적자 객체를 최종 결과로 변환하면서 누적 과정을 끝낼 때 호출할 함수를 반환해야 함
+    * 때로는 ToListCollector에서 볼 수 있는 것처럼 누적자 객체가 이미 최종 결과인 상황도 있음
+    * 이 때는 변환 과정이 필요하지 않으므로 finisher 메서드는 항등 함수를 반환함
+      ```
+      public Function<List<T>, List<T>> finisher() {
+          return Function.identity();
+      } 
+      ```
+  * 위 세 개 메서드로도 순차적 스트림 리듀싱 기능을 수행할 수 있음
+    * collect가 동작하기 전에 다른 중간 연산과 파이프라인을 구성할 수 있게 해주는 게으른 특성, 병렬 실행 등으로 인해서 스트림 리듀싱 기능 구현은 복잡함
+  * combiner 메서드 : 두 결과 컨테이너 병합
+    * combiner는 스트림의 서로 다른 서브파트를 병렬로 처리할 때 누적자가 이 결과를 어떻게 처리할지 정의함
+    * toList의 combiner는 비교적 쉽게 구현가능
+    * 스트림의 두 번째 서브파트에서 수집한 항목 리스트를 첫 번째 서브파트 결과 리스트 뒤에 추가하면 됨
+      ```
+      public BinaryOperator<List<T>> combiner() {
+          return (list1, list2) -> {
+              list1.addAll(list2);
+              return list1;
+          };
+      } 
+      ```
+    * combiner 메서드를 이용하면 스트림의 리듀싱을 병렬로 수행할 수 있음
+      * 스트림의 리듀싱을 병렬로 수행할 때 자바 7의 포크/조인 프레임워크, Spliterator를 사용함
+      * 스트림을 분할해야 하는지 정의하는 조건이 거짓으로 바뀌기 전까지 원래 스트림을 재귀적으로 분할함
+        * 보통 분산된 작업의 크기가 너무 작아지면 병렬 수행의 속도는 순차 수행의 속도보다 느려짐
+        * 즉 병렬 수행의 효과가 상쇄됨
+        * 일반적으로 프로세싱 코어의 개수를 초과하는 병렬 작업은 효율적이지 않음
+      * 모든 서브스트림의 각 요소에 리듀싱 연산을 순차적으로 적용해서 서브스트림을 병렬로 처리할 수 있음
+      * 마지막에는 컬렉터의 combiner 메서드가 반환하는 함수로 모든 부분 결과를 쌍으로 합침
+        * 즉 분할된 모든 서브스트림의 결과를 합치면서 연산이 종료됨
+  * Characteristics 메서드
+    * Characteristics 메서드는 Characteristics 형식의 불변 집합을 반환함
+    * Characteristics는 스트림을 병렬로 리듀스할 것인지 그리고 병렬로 리듀스한다면 어떤 최적화를 선택해야 할지 힌트를 제공함
+    * Characteristics는 다음 세 항목을 포함하는 열거형
+      * UNORDERED
+        * 리듀싱 결과는 스트림 요소의 방문 순서나 누적 순서에 영향을 받지 않음
+      * CONCURRENT
+        * 다중 스레드에서 accumulator 함수를 동시에 호출할 수 있으며 이 컬렉터는 스트림의 병릴 리듀싱을 수행할 수 있음
+        * 컬렉터의 플래그에 UNORDERED를 함께 설정하지 않았다면 데이터 소스가 정렬되어 있지 않은 상황에서만 병렬 리듀싱을 수행할 수 있음
+          * 집합처럼 요소의 순서가 무의미한 상황
+      * IDENTITY_FINISH
+        * finisher 메서드가 반환하는 함수는 단순히 identity를 적용할 뿐이므로 이를 생략할 수 있음
+        * 따라서 리듀싱 과정의 최종 결과로 누적자 객체를 바로 사용할 수 있음
+        * 또한 누적자 A를 결과 R로 안전하게 형변환할 수 있음
+  * 지금까지 개발한 ToListCollector에서 스트림의 요소를 누적하는 데 사용한 리스트가 최종 결과 형식이므로 추가 변환이 필요 없음
+    * 따라서 ToListCollector는 IDENTITY_FINISH
+    * 리스트의 순서는 상관이 없으므로 UNORDERED
+    * ToListCollector는 CONCURRENT
+    
+* 응용하기
+```
+public class ToListCollector<T> implements Collector<T, List<T>, List<T>> {
+
+	@Override
+	public Supplier<List<T>> supplier() {
+		// 수집 연산의 시발점
+		return ArrayList::new;
+	}
+
+	@Override
+	public BiConsumer<List<T>, T> accumulator() {
+		// 탐색한 항목을 누적하고 바로 누적자를 고침
+		return List::add;
+	}
+
+	@Override
+	public Function<List<T>, List<T>> finisher() {
+		// 항등 함수
+		return Function.identity();
+	}
+
+	@Override
+	public BinaryOperator<List<T>> combiner() {
+		return (list1, list2) -> { // 두 번째 콘텐츠와 합쳐서 첫 번째 누적자를 고침
+			list1.addAll(list2);   // 변경된 첫 번째 누적자를 반환
+			return list1;
+		};
+	}
+
+	@Override
+	public Set<Characteristics> characteristics() {
+		// 컬렉터의 플래그를 IDENTITY_FINISH, CONCURRENT로 설정
+		return Collections.unmodifiableSet(EnumSet.of(IDENTITY_FINISH, CONCURRENT));
+	}
+}
+```
+* 위 구현이 Collectors.toList 메서드가 반환하는 결과와 완전히 같은 것은 아니지만 사소한 최적화를 제외하면 대체로 비슷함
+  * 특히 자바 API에서 제공하는 컬렉터는 싱글턴 Collections.emptyList()로 빈 리스트를 반환함
+  * 예제에 적용
+    ``` List<Dish> dishes = menuStream.collect(new ToListCollector<Dish>()); ```
+  * 기존 코드
+    ``` List<Dish> dishes = menuStream.collect(toList()); ```
+  * 기존 코드의 toList는 팩토리지만 위 ToListCollector는 new로 인스턴스화한다는 점이 다름
+  
+* 컬렉터 구현을 만들지 않고도 커스텀 수집 수행하기
+  * IDENTITY_FINISH 수집 연산에서는 Collector 인터페이스를 완전히 새로 구현하지 않고도 같은 결과를 얻을 수 있음
+  * Stream은 세 함수(발행, 누적, 합침)를 인수로 받는 collect 메서드를 오버로드
+    * 각각의 메서드는 Collector 인터페이스의 메서드가 반환하는 함수와 같은 기능 수행
+      ```
+      List<Dish> dishes = menuStream.collect(
+          ArrayList::new, // 발행
+          List::add,      // 누적
+          List::addAll    // 합침
+      );
+      ```
+      * 위 두 번째 코드가 이전 코드에 비해 간결하고 축약되어 있지만 가독성은 떨어짐
+      * 적절한 클래스로 커스텀 컬렉터를 구현하는 편이 중복을 피하고 재사용성을 높이는데 도움이 됨
+      * 또한 두 번째 collect 메서드로는 Characteristics를 전달할 수 없음
+        * 즉 두 번째 collect 메서드는 IDENTITY_FINISH와 CONCURRENT지만 UNORDERED는 아닌 컬렉터로만 동작함
+
+### 커스텀 컬렉터를 구현해서 성능 개선하기
+* 커스텀 컬렉터로 n까지의 자연수를 소수와 비소수로 분할
+  ```
+  public Map<Boolean, List<Integer>> partitionPrimes(int n) {
+      return IntStream.rangeClosed(2, n).boxed().collect(partitioningBy(candidate -> isPrime(candidate)));
+  }
+  ```
+* 제곱근 이하로 대상(candidate)의 숫자 범위를 제한해서 isPrime 메서드를 개선
+  ```
+  public boolean isPrime(int candidate) {
+      int candidateRoot = (int) Math.sqrt((double) candidate);
+      return IntStream.rangeClosed(2, candidateRoot).noneMatch(i -> candidate % i == 0);
+  }
+  ```
+
+* 소수로만 나누기
+  * 우선 소수로 나누어 떨어지는지 확인해서 대상의 범위를 좁힐 수 있음
+  * 제수(divisor)가 소수가 아니면 소용 없으므로 제수를 현재 숫자 이하에서 발견한 소수로 제한할 수 있음
+  * 주어진 숫자가 소수인지 판단해야 하는데, 그러려면 발견한 소수 리스트에 접근해야 함
+  * 하지만 우리가 살펴본 컬렉터로는 컬렉터 수집과정에서 부분 결과에 접근할 수 없음
+  * 커스텀 컬렉터 클래스로 문제 해결
+  * 중간 결과 리스트가 있다면 isPrime 메서드로 중간 결과 리스트를 전달하도록 다음과 같이 코드 구현
+    ```
+    public static boolean isPrime(List<Integer> primes, int candidate) {
+        return primes.stream().noneMatch(i -> candidate % i == 0);
+    }
+    ```
+  * 이번에도 대상 숫자의 제곱근보다 작은 소수만 사용하도록 코드를 최적화해야 함
+  * 다음 소수가 대상의 루트보다 크면 소수로 나누는 검사를 멈춰야 하나 스트림 API에는 이런 기능을 제공하는 메서드가 없음
+  * filter(p -> p <= candidate)를 이용해 대상의 루트보다 작은 소수를 필터링 할 수 있음
+  * 하지만 결국 filter는 전체 스트림을 처리한 다음에 결과를 반환하게 됨
+  * 소수 리스트와 대상 숫자의 범위가 아주 크다면 성능 문제 발생 가능
+  * 대상의 제곱보다 큰 소수를 찾으면 검사를 중단함으로써 성능 문제를 없앨 수 있음
+  * 정렬된 리스트와 프레디케이트를 인수로 받아 리스트의 첫 요소에서 시작
+    * 프레디케이트를 만족하는 가장 긴 요소로 이루어진 리스트를 반환하는 takeWhile 메서드 구현
+      ```
+      public static boolean isPrime(List<Integer> primes, int candidate) {
+          int candidateRoot = (int) Math.sqrt((double) candidate);
+          return primes.stream().takeWhile(i -> i <= candidateRoot).noneMatch(i -> candidate % i == 0);
+      }
+      ```
+
+### 커스텀 컬렉터 구현
+* 우선 Collector 인터페이스를 구현하는 새로운 클래스 선언, Collector 인터페이스에서 요구하는 메서드 다섯 개 구현
+
+* [1] Collector 클래스 시그니처 정의
+  * Collector 인터페이스 정의를 참고해서 클래스 시그니처 만들기
+    ``` public interface Collector<T, A, R> ```
+    * 위 코드에서 T는 스트림의 형식, A는 중간 결과를 누적하는 객체 형식, R은 collect 연산의 최종 결과 형식
+  * 정수로 이루어진 스트림에서 누적자와 최종 결과의 형식이 Map<Boolean, List<Integer>>인 컬렉터를 구현해야 함
+  * 즉 Map<Boolean, List<Integer>>는 참과 거짓을 키로, 소수와 소수가 아닌 수를 값으로 가짐
+    ```
+    public class PrimeNumbersCollector 
+        implements Collector<Integer, Map<Boolean, List<Integer>>, Map<Boolean, List<Integer>>>
+    ```
+* [2] 리듀싱 연산 구현
+  * supplier 메서드는 누적자를 만드는 함수를 반환해야 함
+    ```
+	public Supplier<Map<Boolean, List<Integer>>> supplier() {
+		return () -> new HashMap<Boolean, List<Integer>>() {{
+			put(true, new ArrayList<>());
+			put(false, new ArrayList<>());
+		}};
+	}
+    ```
+    * 위 코드에서는 누적자로 사용할 맵을 만들면서 true, false 키와 빈 리스트로 초기화 함
+    * 수집 과정에서 빈 리스트에 각각 소수, 비소수를 추가할 것
+    * 스트림의 요소를 어떻게 수집할 지 결정하는 것은 accumulator 메서드로 우리 컬렉터에서 가장 중요한 메서드
+      * accumulator는 최적화의 핵심이기도 함
+    ```
+    public BiConsumer<Map<Boolean, List<Integer>>, Integer> accumulator() {
+        return (Map<Boolean, List<Integer>> acc, Integer candidate) -> {
+            acc.get(isPrime(acc.get(true), candidate)) // isPrime 결과에 따라 소수 리스트, 비소수 리스트를 만듦
+                .add(candidate); // candidate를 알맞은 리스트에 추가함
+        };
+    }
+    ```
+* [3] 병렬 실행할 수 있는 컬렉터 만들기 (가능할 경우에)
+  * 병렬 수집 과정에서 두 부분 누적자를 합칠 수 있는 메서드 생성
+  * 예제에서는 단순하게 두 번째 맵의 소수 리스트와 비소수 리스트의 모든 수를 첫 번째 맵에 추가하는 연산이면 충분함
+    ```
+    public BinaryOperator<Map<Boolean, List<Integer>>> combiner() {
+        return (Map<Boolean, List<Integer>> map1, Map<Boolean, List<Integer>> map2) -> {
+            map1.get(true).addAll(map2.get(true));
+            map1.get(false).addAll(map2.get(false));
+            return map1;
+        };
+    }
+    ```
+    * 알고리즘 자체가 순차적이어서 컬렉터를 실제 병렬로 사용할 수 없음
+    * 따라서 combiner 메서드는 호출될 일이 없으므로 빈 구현으로 남겨둘 수 있음
+      * 또는 UnsupportedOperationException을 던지도록 구현하는 것도 좋은 방법
+      * 학습 목적으로 구현한 것
+* [4] finisher 메서드와 컬렉터의 characteristics 메서드
+  * accumulator의 형식은 컬렉터 결과 형식과 같으므로 변환 과정이 필요 없음
+  * 따라서 identity를 반환하도록 finisher 메서드를 구현
+    ```
+    public Function<Map<Boolean, List<Integer>>, Map<Boolean, List<Integer>>> finisher() {
+        return Function.identity();
+    }
+    ```
+  * 커스텀 컬렉터는 CONCURRENT도 아니고 UNORDERED도 아니지만 IDENTITY_FINISH이므로 다음처럼 characteristics 메서드를 구현할 수 있음
+    ```
+	public Set<Characteristics> characteristics() {
+		return Collections.unmodifiableSet(EnumSet.of(IDENTITY_FINISH));
+	}
+    ```
+
+* PrimeNumbersCollector 최종 구현 코드
+```
+public class PrimeNumbersCollector implements Collector<Integer, Map<Boolean, List<Integer>>, Map<Boolean, List<Integer>>> {
+
+	@Override
+	public Supplier<Map<Boolean, List<Integer>>> supplier() {
+		return () -> new HashMap<Boolean, List<Integer>>() {{
+			put(true, new ArrayList<>());
+			put(false, new ArrayList<>());
+		}};
+	}
+
+	@Override
+	public BiConsumer<Map<Boolean, List<Integer>>, Integer> accumulator() {
+		return (Map<Boolean, List<Integer>> acc, Integer candidate) -> {
+			acc.get(isPrime(acc.get(true), candidate)).add(candidate);
+		};
+	}
+
+	@Override
+	public BinaryOperator<Map<Boolean, List<Integer>>> combiner() {
+		return (Map<Boolean, List<Integer>> map1, Map<Boolean, List<Integer>> map2) -> {
+			map1.get(true).addAll(map2.get(true));
+			map1.get(false).addAll(map2.get(false));
+			return map1;
+		};
+	}
+
+	@Override
+	public Function<Map<Boolean, List<Integer>>, Map<Boolean, List<Integer>>> finisher() {
+		return Function.identity();
+	}
+
+	@Override
+	public Set<Characteristics> characteristics() {
+		return Collections.unmodifiableSet(EnumSet.of(IDENTITY_FINISH));
+	}
+}
+```
+
+* 커스텀 컬렉터로 교체
+```
+public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
+    return IntStream.rangeClosed(2, n).boxed().collect(new PrimeNumbersCollector());
+}
+```
+
+* 컬렉터 성능 비교
+  * 팩토리 메서드 partitioningBy로 만든 코드와 커스텀 컬렉터로 만든 코드의 기능은 같음
+  * 성능 비교를 위해 간단한 하니스(harness)를 만듦
+    ```
+    public class CollectorHarness {
+    
+    	public static void main(String[] args) {
+    		long fastest = Long.MAX_VALUE;
+    
+    		for (int i = 0; i < 10; i++) {
+    			long start = System.nanoTime();
+    			partitionPrimes(1_000_000);
+    			long duration = (System.nanoTime() - start);
+    
+    			if (duration < fastest) {
+    				fastest = duration;
+    			}
+    		}
+    
+    		System.out.println("Fastest execution done in " + fastest + " msecs");
+    	}
+    }
+    ```
+    * JMH를 사용할 수도 있지만 간단한 예제이기 때문에 사용 안함
+    * partitionBy로 백만 개의 자연수를 소수, 비소수로 분류하는 작업을 10회 반복하면서 가장 빨리 실행된 속도를 기록
+    * 성능이 약 32% 향상됨
+
+### 정리
+* collect는 스트림의 요소를 요약 결과로 누적하는 다양한 방법(컬렉터라 불리는)을 인수로 갖는 최종 연산
+* 스트림의 요소를 하나의 값으로 리듀스하고 요약하는 컬렉터뿐 아니라, 최솟값, 최댓값, 평균값을 계산하는 컬렉터 등이 미리 정의되어 있음
+* 미리 정의된 컬렉터인 groupingBy로 스트림의 요소를 그룹화하거나, partitioningBy로 스트림의 요소를 분할할 수 있음
+* 컬렉터는 다수준의 그룹화, 분할, 리듀싱 연산에 적합하게 설계되어 있음
+* Collector 인터페이스에 정의된 메서드를 구현해서 커스텀 컬렉터를 개발할 수 있음
+
+### [quiz]
+* 아래 joining 컬렉터를 reducing 컬렉터로 올바르게 바꾼 코드를 모두 선택하기
+  ``` String shortMenu = menu.stream().map(Dish::getName).collect(joining()); ```
+  * O : 원래의 joining 컬렉터처럼 각 요리를 요리명으로 변환한 다음에 문자열을 누적자로 사용해서 문자열 스트림을 리듀스하면서 요리명을 하나씩 연결
+    ```
+    String shortMenu = menu.stream()
+        .map(Dish::getName)
+        .collect(reducing((s1, s2) -> s1 + s2))
+        .get();
+    ```
+  * X : reducing은 binaryOperator<T>, 즉 BiFunction<T, T, T>를 인수로 받음.  
+    즉 reducing은 두 인수를 받아 같은 형식을 반환하는 함수를 인수로 받음  
+    하지만 여기서는 두 개의 요리를 인수로 받아 문자열을 반환하기 때문에 컴파일 에러
+    ```
+    String shortMenu = menu.stream()
+        .collect(reducing((d1, d2) -> d1.getName() + d2.getName()))
+        .get();
+    ```
+  * O : 빈 문자열을 포함하는 누적자를 이용해서 리듀싱 과정을 시작, 스트림의 요리를 방문하면서 각 요리를 요리명으로 변환한 다음에 누적자로 추가  
+    세 개의 인수를 갖는 reducing은 누적자 초깃값을 설정할 수 있으므로 Optional을 반환할 필요가 없음
+    ```
+    String shortMenu = menu.stream()
+        .collect(reducing("", Dish::getName, (s1, s2) -> s1 + s2))
+        .get();
+    ```
+  * 위 예제는 범용 reducing으로 joining을 구현할 수 있음을 보여주는 예시일 뿐
+  * 실무에서는 joining을 사용하는 것이 가독성과 성능에 더 좋음
+  
+* 다음 코드의 다수준 분할 결과를 예측하기
+  * O : 유효한 다수준 분할코드
+    ```
+    menu.stream().collect(partitioningBy(Dish::isVegetarian, parititionBy(d -> d.getCalories() > 500)));
+    ```
+    * 결과
+      ```
+      {false={false=[chicken, prawns, salmon], true=[pork, beef]}, 
+      true={false=[rice, season fruit], true=[french fries, pizza]}}
+      ```
+  * X : parititionBy는 불리언을 반환하는 함수, 프레디케이트를 요구하므로 컴파일 되지 않음
+    ```
+    menu.stream().collect(partitioningBy(Dish::isVegetarian, parititionBy(Dish::getType)));
+    ```
+  * O : 분할된 각 항목의 개수를 계산하는 코드
+    ```
+    menu.stream().collect(partitioningBy(Dish::isVegetarian, counting()));
+    ```
+    * 결과
+      ```
+      {false=5, true=4}
+      ```
+
+* 자바 8에서 takeWhile 기능 이용하기
+  * 정렬된 리스트와 프레디케이트를 인수로 받아 프레디케이트를 만족하는 가장 긴 첫 요소 리스트를 반환하도록 직접 takeWhile 메서드 구현
+    ```
+    public static <A> List<A> takeWhile(List<A> list, Predicate<A> p) {
+        int i = 0;
+        for (A item : list) {
+            if (!p.test(item)) {
+                return list.sublist(0, i);
+            }
+            i++;
+        }
+        return list;
+    }
+    ```
+  * 위 메소드를 이용해 isPrime 메소드를 다시 구현. 이번에도 대상 숫자의 제곱근보다 작은 소수만 검사
+    ```
+    public static boolean isPrime(List<Integer> primes, int candidate) {
+        int candidateRoot = (int) Math.sqrt((double) candidate);
+        return takeWhile(primes, i -> i <= candidateRoot).stream().noneMatch(p -> candidate % p == 0);
+    }
+    ```
+  * 스트림 API와는 달리 직접 구현한 takeWhile 메서드는 적극적(eager)으로 동작함
+    * 따라서 가능하면 noneMatch 동작과 조화를 이룰 수 있도록 자바 9 스트림에서 제공하는 게으른 버전의 takeWhile을 사용하는 것이 좋음
 ---
