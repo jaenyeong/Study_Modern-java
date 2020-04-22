@@ -2160,3 +2160,684 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   * 스트림 API와는 달리 직접 구현한 takeWhile 메서드는 적극적(eager)으로 동작함
     * 따라서 가능하면 noneMatch 동작과 조화를 이룰 수 있도록 자바 9 스트림에서 제공하는 게으른 버전의 takeWhile을 사용하는 것이 좋음
 ---
+
+## chapter 07 - 병럴 데이터 처리와 성능
+* 컬렉션 데이터 처리 속도를 높이려고 따로 고민할 필요 없음
+* 멀티코어를 활용해서 파이프라인 연산을 실행할 수 있다는 점이 가장 중요한 특징
+* 자바 7 이전에는 데이터 컬렉션을 병렬로 처리하기 어려웠음
+  * 데이터를 서브파트로 분할해야 함
+  * 분할된 서브파트를 각각의 스레드로 할당
+  * 스레드로 할당한 다음에는 의도치 않은 레이스 컨디션(race condition)이 발생하지 않도록 적절한 동기화 추가해야 함
+    * 레이스 컨디션(race condition) : 둘 이상의 입력, 조작의 타이밍이나 순서 등이 결과값에 영향을 주는 상태
+  * 마지막으로 부분 결과를 합쳐야 함
+* 자바 7은 더 쉽게 병렬화를 수행하면서 에러를 최소화 할 수 있도록 포크/조인 프레임워크 기능 제공
+
+### 병렬 스트림
+* 컬렉션에 parallelStream을 호출하면 병렬 스트림(parallel stream)이 생성됨
+* 병렬 스트림이란 각각의 스레드에서 처리할 수 있도록 스트림 요소를 여러 청크로 분할한 스트림
+* 예제
+  * 숫자 n을 인수로 받아서 1부터 n까지의 모든 숫자의 합계를 반환하는 메서드를 구현한다고 가정
+  * 숫자로 이루어진 무한 스트림을 만든 다음에 인수로 주어진 크기로 스트림을 제한하고, 두 숫자를 더하는 BinaryOperator로 리듀싱 작업을 수행할 수 있음
+    ```
+    public long sequentialSum(long n) {
+        return Stream.iterate(1L, i -> i + 1) // 무한 자연수 스트림 생성
+                .limit(n)                     // n개 이하로 제한
+                .reduce(0L, Long::sum);       // 모든 숫자를 더하는 스트림 리듀싱 연산
+    }
+    ```
+    * 전통적인 자바
+      ```
+      public long iterativeSum(long n) {
+          long result = 0;
+          for (long i = 1L; i <= n; i++) {
+              result += i;
+          }
+          return result;
+      }
+      ```
+    * n이 커진다면 이 연산을 병렬로 처리하는 것이 좋음
+    
+* 순차 스트림을 병렬 스트림으로 변환하기
+  * 순차 스트림에 parallel 메서드를 호출하면 기존의 함수형 리듀싱 연산(숫자 합계 계산)이 병렬로 처리됨
+    ```
+    public long parallelSum(long n) {
+        return Stream.iterate(1L, i -> i + 1)
+                .limit(n)
+                .parallel()                  // 스트림을 병렬 스트림으로 변환
+                .reduce(0L, Long::sum);
+    }
+    ```
+    * 위 코드에서는 리듀싱 연산으로 스트림의 모든 숫자를 더함
+      * 스트림이 여러 청크로 분할되어 있음
+      * 리듀싱 연산을 여러 청크에 병렬로 수행할 수 있음
+      * 리듀싱 연산으로 생성된 부분 결과를 다시 리듀싱 연산으로 합쳐서 전체 스트림의 리듀싱 결과를 도출함
+  * 순차 스트림에 parallel을 호출해도 스트림 자체에는 아무 변화도 일어나지 않음
+    * 내부적으로는 parallel을 호출하면 이후 연산이 병렬로 수행해야 함을 의미하는 불리언 플래그가 설정됨
+    * 반대로 sequential로 병렬 스트림을 순차 스트림으로 바꿀 수 있음
+    * 이 두 셈서드를 이용해서 어떤 연산을 병렬로 실행하고 어떤 연산을 순차로 실행할지 제어할 수 있음
+    * 에시
+      ```
+      stream.parallel()
+          .filter()
+          .sequential()
+          .map()
+          .parallel()
+          .reduce();
+      ```
+      * parallel, sequential 두 메서드 중 최종적으로 호출된 메서드가 전체 파이프라인에 영향을 미침
+
+* 병렬 스트림에서 사용하는 스레드 풀 설정
+  * 병렬 스트림은 내부적으로 ForkJoinPool을 사용함
+  * 기본적으로 ForkJoinPool은 프로세서 수, 즉 Runtime.getRuntime(), availableProcessors()가 반환하는 값에 상응하는 스레드를 가짐
+    ``` System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "12"); ```
+    * 이 예제는 전역 설정 코드이므로 이후의 모든 병렬 스트림 연산에 영향을 줌
+  * 현재는 하나의 병렬 스트림에 사용할 수 있는 특정한 값을 지정할 수 없음
+  * 일반적으로 기기의 프로세서 수와 같으므로 특별한 이유가 없다면 ForkJoinPool의 기본값을 그대로 사용할 것을 권장
+
+* 스트림 성능 측정
+  * 성능 최적화 시 세 가지 황금 규칙 첫째도, 둘째도, 셋째도 측정
+  * 자바 마이크로벤치마크 하니스(Java Microbenchmark Harness - JMH)라는 라이브러리 이용해 구현
+    * JMH를 이용하면 간단하고, 어노테이션 기반 방식을 지원하며, 안정적으로 자바 프로그램이나 JVM을 대상으로 하는 다른 언어용 벤치마크 구현 가능
+    * JVM로 실행되는 프로그램을 벤치마크하는 작업은 어려움
+    * 핫스팟(Hot spot)이 바이트코드를 최적화 하는데 필요한 준비 시간, 가비지 컬렉터로 인한 오버헤드 등과 같은 여러 요소를 고려해야 함
+    ```
+    @BenchmarkMode(Mode.AverageTime)                 // 벤치마크 대상 메서드를 실행하는 데 걸린 평균 시간 측정
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)           // 벤치마크 결과를 밀리초 단위로 출력
+    @Fork(value = 2, jvmArgs = {"-Xms4G", "-Xmx4G"}) // 4Gb의 힙 공간을 제공한 환경에서 두 번 벤치마크를 수행해 결과의 신뢰성 확보
+    public class ParallelStreamBenchmark {
+    	private static final long N = 10_000_000L;
+    
+    	@Benchmark
+    	public long sequentialSum() {
+    		return Stream.iterate(1L, i -> i + 1)
+    				.limit(N)
+    				.reduce(Long::sum)
+    				.get();
+    	}
+    
+    	@TearDown(Level.Invocation) // 매 번 벤치마크를 실행한 다음에는 가비지 컬렉터 동작 시도
+    	public void tearDown() {
+    		System.gc();
+    	}
+    }
+    ```
+    * 클래스를 컴파일하면 이전에 설정한 메이븐 플러그인 benchmarks.jar라는 두 번째 파일을 만듦
+      * 실행 : java -jar ./target/benchmarks.jar ParallelStreamBenchmark
+    * 벤치마크가 가능한 가비지 컬렉터의 영향을 받지 않도록 힙의 크기를 충분하게 설정, 벤치마크가 끝날 때 마다 가비지 컬렉터가 실행되도록 강제함
+      * 여전히 결과는 정확하지 않을 수 있음 (기계가 지원하는 코어의 갯수 등이 실행 시간에 영향을 미칠 수 있기 때문)
+    * 이 코드를 실행할 때 JMH 명령은 핫스팟이 코드를 최적화 할 수 있도록 20번을 실행하며 벤치마크를 준비한 다음 20번을 더 실행해 최정 결과를 계산함
+      * JMH는 기본적으로 20 + 20 회 프로그램 반복 실행함
+      * JMH의 특정 어노테이션이나 -w, -i 플래그를 명령행에 추가해 이 기본 동작 횟수를 조절할 수 있음
+    * 전통적인 for 루프를 사용해 반복하는 방법이 더 저수준으로 동작할 뿐 아니라, 기본값을 박싱, 언박싱할 필요가 없으므로 더 빠를 것이라 예상함
+      ```
+      @Benchmark
+      public long iterativeSum() {
+      	  long result = 0;
+      	  for (long i = 1L; i <= N; i++) {
+              result += i;
+          }
+          return result;
+      }
+      ```
+    * 병렬 스트림을 사용
+      ```
+      @Benchmark
+      public long parallelSum() {
+          return Stream.iterate(1L, i -> i + 1)
+                    .limit(N)
+                    .parallel()
+                    .reduce(0L, Long::sum);
+      }
+      ```
+    * 병렬 버전이 순차 버전에 비해 다섯 배나 느림
+      * 두 가지 문제 발견
+        * 반복 결과로 박싱된 객체가 만들어지므로 숫자를 더하려면 언박싱을 해야 함
+        * 반복 작업은 병렬로 수행할 수 있는 독립 단위로 나누기가 어려움
+      * 이전 연산의 결과에 따라 다음 함수의 입력이 달라지기 때문에 iterate 연산을 청크로 분할하기 어려움
+        * iterate는 본질적으로 순차적
+      * 이와 같은 상황에서는 리듀싱 연산이 수행되지 않음
+        * 리듀싱 과정을 시작하는 시점에 전체 숫자 리스트가 준비되지 않았으므로 스트림을 병렬로 처리할 수 있도록 청크를 분할할 수 없음
+        * 스트림이 병렬로 처리되도록 지시했고 각각의 합계가 다른 스레드에서 수행되었지만 결국 순차처리 방식과 크게 다른 점이 없음
+          * 스레드를 할당하는 오버헤드만 증가하게 됨
+
+* 더 특화된 메서드 사용
+  * LongStreamClosed 메서드는 iterate에 비해 다음과 같은 장점 제공
+    * LongStreamClosed는 기본형 long을 직접 사용하므로 박싱, 언박싱 오버헤드가 사라짐
+    * LongStreamClosed는 쉽게 청크로 분할할 수 있는 숫자 범위를 생산함
+      * 예를 들어 1-20 범위의 숫자를 각가 1-5, 6-10, 11-15, 16-20 범위의 숫자로 분할할 수 있음
+    * 순차 스트림 처리 시간 측정
+      ```
+      @Benchmark
+      public long rangedSum() {
+      	return LongStream.rangeClosed(1, N)
+      			.reduce(0L, Long::sum);
+      }
+      ```
+      * 기존 iterate 팩토리 메서드로 생성한 순차 버전에 의해 이 예제의 숫자 스트림 처리 속도가 더 빠름
+        * 특화되지 않은 스트림을 처리할 때는 오토박싱, 언박싱 등의 오버헤드를 수반하기 때문
+      * 상황에 따라서는 어떤 알고리즘을 병렬화하는 것보다 적절한 자료구조를 선택하는 것이 더 중요하다는 사실을 단적으로 보여줌
+      * 새로운 버전 병렬 스트림
+        ```
+        @Benchmark
+        public long parallelRangedSum() {
+            return LongStream.rangeClosed(1, N)
+                    .parallel()
+                    .reduce(0L, Long::sum);
+        }
+        ```
+        * 순차 실행보다 빠른 성능을 갖는 병렬 리듀싱
+        * 함수형 프로그래밍을 올바로 사용하면 반복적으로 코드를 실행하는 방법에 비해  
+          최신 멀티 코어 CPU가 제공하는 병렬 실행의 힘을 단순하게 직접적으로 얻을 수 있음
+        * 하지만 병렬화는 공짜가 아님
+          * 병렬화를 이용하려면 스트림을 재귀적으로 분할, 각 서브스티림을 서로 다른 스레드의 리듀싱으로 연산으로 할당, 결과를 하나의 값으로 합쳐야 함
+          * 멀티코어 간의 데이터 이동은 생각보다 비쌈
+            * 따라서 코어 간에 데이터 전송 시간보다 훨씬 오래 걸리는 작업만 병렬로 다른 코어에서 수행하는 것이 바람직함
+          * 상황에 따라 쉽게 병렬화를 이용할 수 있거나 아니면 아예 병렬화를 이용할 수 없을 때도 있음
+
+* 병렬 스트림의 올바른 사용법
+  * 병렬 스트림을 잘못 사용하면서 발생하는 많은 문제는 공유된 상태를 바꾸는 알고리즘을 사용하기 때문에 생김
+  * n까지의 자연수를 더하면서 공유된 누적자를 바꾸는 프로그램 구현 코드
+    ```
+    public long sideEffectSum(long n) {
+        Accumulator accumulator = new Accumulator();
+        LongStream.rangeClosed(1, n).forEach(accumulator::add);
+        return accumulator.total;
+    }
+
+    public class Accumulator {
+        public long total = 0;
+
+        public void add(long value) {
+            total += value;
+        }
+    }
+    ```
+    * 위 코드는 순차 실행할 수 있도록 구현되어 있으므로 병렬로 실행하면 문제가 발생
+      * total 접근할 때마다(다수의 스레드에서 동시에 데이터에 접근하는) 데이터 레이스 문제 발생
+      * 동기화로 문제를 해결하다보면 결국 병렬화라는 특성이 없어져 버림
+        ```
+        public long sideEffectParallelSum(long n) {
+            Accumulator accumulator = new Accumulator();
+            LongStream.rangeClosed(1, n).parallel().forEach(accumulator::add);
+            return accumulator.total;
+        }
+        ```
+        * 성능은 둘째치고, 올바른 결과값이 나오지 않음
+        * ``` total += value ``` 는 아토믹 연산이 아님
+        * 여러 스레드에서 공유하는 객체의 상태를 바꾸는 forEach 블록 내부에서 add 메서드를 호출하면서 이와 같은 문제 발생
+
+* 병렬 스트림 효과적으로 사용하기
+  * '천 개 이상의 요소가 있을 때만 병렬 스트림을 사용하라' 와 같이 양을 기준으로 병렬 스트림 사용을 결정하는 것은 적절하지 않음
+    * 정해진 기기에서 정해진 연산을 수행할 때는 이와 같은 기준을 사용할 수 있지만 상황이 달라지면 이와 같은 기준이 제 역할을 하지 못함
+    * 그래도 어떤 상황에서 병렬 스트림을 사용할 것인지 약간의 수량적 힌트를 정하는 것이 도움이 될 때도 있음
+  * 확신이 서지 않으면 직접 측정하라
+    * 순차 스트림을 병렬 스트림으로 쉽게 바꿀 수 있음
+    * 하지만 무조건 병렬 스트림으로 바꾸는 것이 능사는 아님
+    * 언제나 병렬 스트림이 순차 스트림보다 빠른 것이 아니기 때문
+    * 더욱이 병렬 스트림의 수행 과정은 투명하지 않을 때가 많음
+    * 따라서 순차 스트림과 병렬 스트림 중 어떤 것이 좋을지 모르겠다면 적절한 벤치마크로 직접 성능을 측정하는 것이 바람직함 
+  * 박싱을 주의하라
+    * 자동 박싱, 언박싱은 성능을 크게 저하시킬 수 있는 요소
+    * 되도록이면 기본형 특화 스트림을 사용하는 것이 좋음 (IntStream, LongStream, DoubleStream)
+  * 순차 스트림보다 병렬 스트림에서 성능이 떨어지는 연산이 있음
+    * 특히 limit, findFirst처럼 요소의 순서에 의존하는 연산을 병렬 스트림에서 수행하려면 비싼 비용을 치러야 함
+    * 예를 들어 findAny는 요소의 순서와 상관없이 연산하므로 findFirst보다 성능이 좋음
+    * 정렬된 스트림에 unordered를 호출하면 비정렬된 스트림을 얻을 수 있음
+    * 스트림에 N개 요소가 있을 때 요소의 순서가 상관 없다면(얘를 들어 소스가 리스트라면) 비정렬된 스트림에 limit를 호출하는 것이 더 효율적
+  * 스트림에서 수행하는 전체 파이프라인 연산 비용을 고려하라
+    * 처리해야 할 요소가 N, 하나의 요소를 처리하는 데 드는 비용을 Q라 하면 전체 스트림 파이프라인 처리 비용을 N * Q로 예상할 수 있음
+    * Q가 높아진다는 것은 병렬 스트림으로 성능을 개선할 수 있는 가능성이 있음을 의미
+  * 소량의 데이터에서는 병렬 스트림이 도움 되지 않음
+    * 소량의 데이터를 처리하는 상황에서는 병렬화 과정에서 생기는 부가 비용을 상쇄할 수 있을 만큼의 이득을 얻지 못하기 때문
+  * 스트림을 구성하는 자료구조가 적절한지 확인하라
+    * 예를 들어 ArrayList를 LinkedList보다 효율적으로 분할할 수 있음
+    * LinkedList를 분할하려면 모든 요소를 탐색해야 하지만 ArrayList는 요소를 탐색하지 않고도 리스트를 분할할 수 있기 때문
+    * range 팩토리 메서드로 만든 기본형 스트림도 쉽게 분해 가능
+    * 커스텀 Spliterator를 구현해서 분해 과정을 완벽하게 제어 가능
+  * 스트림의 특성과 파이프라인의 중간 연산이 스트림의 특성을 어떻게 바꾸는지에 따라 분해 과정의 성능이 달라질 수 있음
+    * 예를 들어 SIZED 스트림은 정확히 같은 크기의 두 스트림으로 분할할 수 있으므로 효과적으로 스트림을 병렬처리 할 수 있음
+    * 반면 필터 연산이 있으면 스트림의 길이를 예측할 수 없으므로 효과적으로 스트림을 병렬 처리할 수 있을지 알 수 없게 됨
+  * 최종 연산의 병합 과정(예를 들어 Collector의 combiner 메서드) 비용을 살펴보라
+    * 병합 과정의 비용이 비싸다면 병렬 스트림으로 얻은 성능의 이익이 서브스트림의 부분 결과를 합치는 과정에서 상쇄될 수 있음
+  * 스트림 소스와 분해성
+    * ArrayList
+      * 훌륭함
+    * LinkedList
+      * 나쁨
+    * IntStream.range
+      * 훌륭함
+    * Stream.iterate
+      * 나쁨
+    * HashSet
+      * 좋음
+    * TreeSet
+      * 좋음
+  * 병렬 스트림이 수행되는 내부 인프라구조도 살펴봐야 함
+    * 자바 7에서 추가된 포크/조인 프레임워크로 병렬 스트림이 처리됨
+
+### 포크/조인 프레임워크
+* 포크/조인 프레임워크는 병렬화할 수 있는 작업을 재귀적으로 작은 작업으로 분할한 다음에 서브태스크의 각각의 결과를 합쳐서 전체 결과를 만들도록 설계됨
+* 포크/조인 프레임워크에서는 서브태스크를 스레드 풀(ForkJoinPool)의 작업자 스레드에 분산 할당하는 ExecutorService 인터페이스를 구현함
+
+* RecursiveTask 활용
+  * 스레드 풀을 이용하려면 RecursiveTask<R>의 서브클래스를 만들어야 함
+    * 여기서 R은 병렬화된 태스크가 생성하는 결과 형식 또는 결과가 없을 때는(결과가 없더라도 다른 비지역 구조를 바꿀 수 있음) RecursiveAction 형식
+    * 추상 메서드 compute를 구현해야 함
+      * ``` protected abstract R compute() ```
+      * compute 메서드는 태스크를 서브태스크로 분할하는 로직과 더 이상 분할할 수 없을 때 개별 서브태스크의 결과를 생산할 알고리즘을 정의함
+      * 따라서 대부분의 compute 메서드 구현은 다음과 같은 의사코드 형식을 유지
+        ```
+        if (태스크가 충분히 작거나 더 이상 분할할 수 없으면) {
+            순차적으로 태스크 계산
+        } else {
+            태스크를 두 서브태스크로 분할
+            태스크가 다시 서브태스크로 분할되도록 이 메서드를 재귀적으로 호출함
+            모든 서브태스크의 연산이 완료될 때까지 기다림
+            각 서브태스크의 결과를 합침
+        }
+        ```
+  * 이 알고리즘은 분할 후 정복(divide-and-conquer) 알고리즘의 병렬화 버전
+    ```
+    // RecursiveTask를 상속받아 포크/조인 프레임워크에서 사용할 태스크를 생성함
+    public class ForkJoinSumCalculator extends RecursiveTask<Long> {
+    	// 이 값 이하의 서브태스크는 더 이상 분할할 수 없음
+    	public static final long THRESHOLD = 10_000;
+    
+    	// 더할 숫자 배열
+    	private final long[] numbers;
+    
+    	// 이 서브태스크에서 처리할 배열의 초기 위치와 최종 위치
+    	private final int start;
+    	private final int end;
+    
+    	// 메인 태스크를 생성할 때 사용할 공개 생성자
+    	public ForkJoinSumCalculator(long[] numbers) {
+    		this(numbers, 0, numbers.length);
+    	}
+    
+    	// 메인 태스크의 서브태스크를 재귀적으로 만들때 사용하는 비공개 생성자
+    	private ForkJoinSumCalculator(long[] numbers, int start, int end) {
+    		this.numbers = numbers;
+    		this.start = start;
+    		this.end = end;
+    	}
+    
+    	// RecursiveTask의 추상 메서드 오버라이드
+    	@Override
+    	protected Long compute() {
+    		// 이 태스크에서 더할 배열의 길이
+    		int length = end - start;
+    
+    		// 기준과 같거나 작으면 순차적으로 결과를 계산
+    		if (length <= THRESHOLD) {
+    			return computeSequentially();
+    		}
+    
+    		// 배열의 첫 번째 절반을 더하도록 서브태스크를 생성
+    		ForkJoinSumCalculator leftTask = new ForkJoinSumCalculator(numbers, start, start + length / 2);
+    		// ForkJoinPool의 다른 스레드로 새로 생성한 태스크를 비동기로 실행
+    		leftTask.fork();
+    
+    		// 배열의 나머지 절반을 더하도록 서브태스크를 생성
+    		ForkJoinSumCalculator rightTask = new ForkJoinSumCalculator(numbers, start + length / 2, start + end);
+    		// 두 번째 서브태스크를 동기 실행
+    		// 이 때 추가로 분할이 일어날 수 있음
+    		Long rightResult = rightTask.compute();
+    		// 첫 번째 서브태스크의 결과를 읽거나 아직 결과가 없으면 기다림
+    		Long leftResult = leftTask.join();
+    
+    		// 두 서브태스크의 결과를 조합한 값이 이 태스크의 결과
+    		return leftResult + rightResult;
+    	}
+    
+    	// 더 분할할 수 없을 때 서브태스크의 결과를 계산하는 단순한 알고리즘
+    	private Long computeSequentially() {
+    		long sum = 0;
+    		for (int i = start; i < end; i++) {
+    			sum += numbers[i];
+    		}
+    		return sum;
+    	}
+    
+    	// 이와 같이 ForkJoinSumCalculator의 생성자로 원하는 수의 배열을 넘겨줄 수 있음
+    	public static long forkJoinSum(long n) {
+    		// n까지의 자연수를 포함하는 배열 생성
+    		long[] numbers = LongStream.rangeClosed(1, n).toArray();
+    		// 생성된 배열을 ForkJoinSumCalculator의 생성자로 전달, ForkJoinTask 생성
+    		ForkJoinTask<Long> task = new ForkJoinSumCalculator(numbers);
+    		// 마지막으로 생성한 태스크를 새로운 ForkJoinPool의 invoke 메서드로 전달
+    		// ForkJoinPool에서 실행되는 마지막 invoke 메서드의 반환값은 ForkJoinSumCalculator에서 정의한 태스크 결과가 됨
+    		return new ForkJoinPool().invoke(task);
+    	}
+    }
+    ```
+  * 일반적으로 앱에서는 둘 이상의 ForkJoinPool을 사용하지 않음
+    * 즉 소프트웨어의 필요한 곳에서 언제든 가져다 쓸 수 있도록 ForkJoinPool을 한 번만 인스턴스화해서 정적 필드에 싱글턴으로 저장
+    * ForkJoinPool을 만들면서 인수가 없는 디폴트 생성자를 이용
+      * 이는 JVM에서 이용할 수 있는 모든 프로세서가 자유롭게 풀에 접근할 수 있음을 의미함
+      * 더 정확하게는 Runtime.availableProcessors의 반환값으로 풀에 사용할 스레드 수를 결정함
+      * availableProcessors, '사용할 수 있는 프로세서'라는 이름과는 달리 실제 프로세서 외에 하이퍼스레딩과 관련된 가상 프로세서도 개수에 포함됨
+
+* ForkJoinSumCalculator 실행
+  * ForkJoinSumCalculator를 ForkJoinPool로 전달하면 풀의 스레드가 ForkJoinSumCalculator의 compute 메서드를 실행하면서 작업 수행
+  * compute 메서드는 병렬로 실행할 수 있을만큼 태스크의 크기가 충분히 작아졌는지 확인
+  * 아직 태스크의 크기가 크다고 판단되면 숫자 배열을 반으로 분할해서 두 개의 새로운 ForkJoinSumCalculator로 할당
+  * 그러면 다시 ForkJoinPool이 새로 생성된 ForkJoinSumCalculator를 실행
+  * 결국 이 과정이 재귀적으로 반복되면서 주어진 조건을 만족할 때까지 태스크 분할을 반복함
+  * 이제 각 서브태스크는 순차적으로 처리되며 포킹 프로세스를 만들어진 이진트리의 태스크를 루트에서 역순으로 방문함
+  * 각 서브태스크의 부분결과를 합쳐서 태스크의 최종 결과를 계산함
+  * 처음 부분 하니스로 포크/조인 프레임워크의 합계 메서드 성능 확인
+    ```
+    System.out.println("ForkJoin sum done in: " +
+        measurePerf(ForkJoinSumCalculator::forkJoinSum, 10_000_000L) + " msecs");
+    ```
+    * 병렬 스트림을 이용할 때보다 성능이 나빠짐
+      * 하지만 이는 ForkJoinSumCalculator 태스크에서 사용할 수 있도록 전체 스트림을 long[]으로 변환했기 때문
+    
+* 포크/조인 프레임워크를 제대로 사용하는 방법
+  * join 메서드를 태스크에 호출하면 태스크가 생산하는 결과가 준비될 때까지 호출자를 블록시킴
+    * 따라서 두 서브태스크가 모두 시작된 다음에 join을 호출해야 함
+    * 그렇지 않으면 각각의 서브태스크가 다른 태스크가 끝나길 기다리는 일이 발생하며 원래 순차 알고리즘보다 느리고 복잡한 프로그램이 될 수 있음
+  * RecursiveTask 내에서는 ForkJoinPool의 invoke 메서드를 사용하지 말아야 함
+    * 대신 compute, fork 메서드를 직접 호출할 수 있음
+    * 순차 코드에서 병렬 계산을 시작할 때만 invoke를 사용함
+  * 서브태스크에 fork 메서드를 호출해서 ForkJoinPool의 일정을 조절할 수 있음
+    * 왼쪽 작업과 오른쪽 작업 모두에 fork 메서드를 호출하는 것이 자연스러울 것 같지만
+    * 한쪽 작업에는 fork를 호출하는 것 보다는 compute를 호출하는 것이 효율적
+    * 그러면 두 서브태스크의 한 태스크에는 같은 스레드를 재사용할 수 있으므로 풀에서 불필요한 태스크를 할당하는 오버헤드를 피할 수 있음
+  * 포크/조인 프레임워크를 이용하는 병렬 계산은 디버깅하기 어려움
+    * 보통 IDE로 디버깅할 때 스택 트레이스(stack trace)로 문제가 일어난 과정을 쉽게 확인할 수 있는데
+    * 포크/조인 프레임워크에서는 fork라 불리는 다른 스레드에서 compute를 호출하므로 스택 트레이스가 도움이 되지 않음
+  * 병렬 스트림에서 살펴본 것처럼 멀티코어에 포크/조인 프레임워크를 사용하는 것이 순차 처리보다 무조건 빠를 거라는 생각은 버려야 함
+    * 병렬 처리로 성능을 개선하려면 태스크를 여러 독립적인 서브태스크로 분할할 수 있어야 함
+    * 각 서브태스크의 실행시간은 새로운 태스크를 포킹하는 데 드는 시간보다 길어야 함
+    * 예를 들어 I/O를 한 서브태스크에 할당하고 다른 서브태스크에서는 계산을 실행, 즉 I/O와 계산을 병렬로 실행할 수 있음
+    * 또한 순차 버전과 병렬 버전의 성능을 비교할 때는 다른 요소도 고려해야 함
+    * 다른 자바 코드와 마찬가지로 JIT 컴파일러에 의해 최적화되려면 몇 차례의 '준비 과정(warmed up)' 또는 실행 과정을 거쳐야 함
+    * 따라서 성능을 측정할 때는 지금까지 살펴본 하니스에서 그랬던 것처럼 여러 번 프로그램을 실행한 결과를 측정해야 함
+    * 또한 컴파일러 최적화는 병렬 버전보다는 순차 버전에 집중될 수 있다는 사실
+      * 예를 들어 순차 버전에서는 죽은 코드를 분석해서 사용되지 않는 계산은 아예 삭제하는 등의 최적화를 달성하기 쉬움
+
+* 작업 훔치기
+  * ForkJoinSumCalculator 에제에서는 덧셈을 수행할 숫자가 만 개 이하면 서브태스크 분할을 중단했음
+    * 기준값을 바꿔가면서 실험해보는 방법 외에는 좋은 기준을 찾을 뾰족한 방법이 없음
+    * 우선 천만 개 항목을 포함하는 배열을 사용하면 ForkJoinSumCalculator는 천 개 이상의 서브 태스크를 포크할 것
+    * 대부분의 기기에는 코어가 네 개뿐이므로 천 개 이상의 서브태스크는 자원만 낭비하는 것 같아 보일 수 있음
+    * 실제로 각각의 태스크가 CPU로 할당되는 상황이라면 어차피 천 개 이상의 서브태스크로 분할한다고 해서 성능이 좋아지지는 않음
+  * 하지만 실제로는 코어 개수와 관계없이 적절한 크기로 분할된 많은 태스크를 포킹하는 것이 바람직함
+    * 이론적으로는 코어 개수만큼 병렬화된 태스크로 작업부하를 분할하면 모든 CPU 코어에서 태스크를 실행할 것이고
+    * 크기가 같은 각각의 태스크는 같은 시간에 종료될 것이라고 생각할 수 있음
+    * 하지만 이 예제보다 복잡한 시나리오가 사용되는 현실에서는 각각의 서브태스크의 작업완료 시간이 크게 달라질 수 있음
+    * 분할 기법이 효율적이지 않았기 때문일 수도 있고 아니면 디스크 접근 속도가 저하되었거나 외부 서비스와 협력하는 과정에서 지연이 생길 수 있기 때문
+  * 포크/조인 프레임워크에서는 작업 훔치기(work stealing)라는 기법으로 이 문제를 해결함
+    * 작업 훔치기 기법에서는 ForkJoinPool의 모든 스레드를 거의 공정하게 분할함
+    * 각각의 스레드는 자신에게 할당된 태스크를 포함하는 이중 연결 리스트(doubly linked list)를 참조하면서
+    * 작업이 끝날 때마다 큐의 헤드에서 다른 태스크를 가져와 작업을 처리함
+    * 이때 한 스레드는 다른 스레드보다 자신에게 할당된 태스크를 더 빨리 처리할 수 있음
+    * 즉 다른 스레드는 바쁘게 일하는데 한 스레드는 할일이 다 떨어진 상황 발생
+    * 이때 할일이 없어진 스레드는 유휴 상태로 바뀌는 것이 아니라 다른 스레드 큐의 꼬리(tail)에서 작업을 훔쳐옴
+    * 모든 태스크가 작업을 끝낼 때까지, 즉 모든 큐가 빌 때까지 이 과정을 반복함
+    * 따라서 태스크의 크기를 작게 나눠야 작업자 스레드 간의 작업부하를 비슷한 수준으로 유지할 수 있음
+  * 풀에 있는 작업자 스레드의 태스크를 재분배하고 균형을 맞출 때 작업 훔치기 알고리즘을 사용함
+    * 작업자의 큐에 있는 태스크를 두 개의 서브 태스크로 분할했을 때 둘 중 하나의 태스크를 다른 유휴 작업자가 훔쳐갈 수 있음
+    * 그리고 주어진 태스크를 순차 실행할 단계가 될 때까지 이 과정을 재귀적으로 반복함
+  * 스트림을 자동으로 분할해주는 기능
+    * Spliterator
+
+### Spliterator 인터페이스
+* 자바 8은 Spliterator라는 새로운 인터페이스를 제공함
+  * '분할할 수 있는 반복자(splitable iterator)'라는 의미
+  * Iterator처럼 Spliterator는 소스의 요소 탐색 기능을 제공한다는 점은 같지만 Spliterator는 병렬 작업에 특화되어 있음
+  * 커스텀 Spliterator를 꼭 직접 구현해야 하는 것은 아니지만 Spliterator가 어떻게 동작하는지 이해한다면
+  * 병렬 스트림 동작과 관련한 통찰력을 얻을 수 있음
+  * 자바 8은 컬렉션 프레임워크에 포함된 모든 자료구조에 사용할 수 있는 디폴트 Spliterator 구현을 제공함
+  * 컬렉션은 spliterator라는 메서드를 제공하는 Spliterator 인터페이스를 구현함
+  * Spliterator 인터페이스는 여러 메서드를 정의함
+    ```
+    public interface Spliterator<T> {
+        boolean tryAdvance(Consumer<? super T> action);
+        Spliterator<T> trySplit();
+        long estimateSize();
+        int characteristics();
+    }
+    ```
+    * 여기서 T는 Spliterator에서 탐색하는 요소의 형식을 가리킴
+      * tryAdvance 메서드는 Spliterator의 요소를 하나씩 순차적으로 소비하면서 탐색해야 할 요소가 남아있으면 참을 반환함
+        * 일반적인 Iterator 동작과 같음
+      * 반면 trySplit 메서드는 Spliterator의 일부 요소(자신이 반환한 요소)를 분할해서 두 번째 Spliterator를 생성하는 메서드
+      * Spliterator에서는 estimateSize 메서드로 탐색해야 할 요소 수 정보를 제공할 수 있음
+      * 특히 탐색해야 할 요소 수가 정확하진 않더라도 제공된 값을 이용해서 더 쉽고 공평하게 Spliterator를 분할할 수 있음
+
+* 분할 과정
+  * 스트림을 여러 스트림으로 분할하는 과정은 재귀적으로 일어남
+  * 첫 번째 Spliterator에 trySplit을 호출하면 두 번째 Spliterator가 생성됨
+  * 두 개의 Spliterator에 trySplit을 호출하면 네 개의 Spliterator가 생성됨
+  * trySplit의 결과가 null이 될 때까지 이 과정을 반복함
+  * 이 분할 과정은 characteristics 메서드로 정의하는 Spliterator의 특성에 영향을 받음
+  
+* Spliterator 특성
+  * Spliterator는 characteristics라는 추상 메서드도 정의함
+  * characteristics 메서드는 Spliterator 자체의 특성 집합을 포함하는 int를 반환함
+  * Spliterator를 이용하는 프로그램은 이들 특성을 참고해서 Spliterator를 더 잘제어하고 최적화할 수 있음
+  * Spliterator 특성 정보 - 일부 특성은 컬렉터와 개념상 비슷함에도 다른 방식으로 정의되었음
+    * ORDERED
+      * 리스트처럼 요소에 정해진 순서가 있으므로 Spliterator는 요소를 탐색하고 분할할 때 이 순서에 유의해야 함
+    * DISTINCT
+      * x, y 두 요소를 방문햇을 때 x.equals(y)는 항상 false를 반환함
+    * SORTED
+      * 탐색된 요소는 미리 정의된 정렬 순서를 따름
+    * SIZED
+      * 크기가 알려진 소스(예를 들면 Set)로 Spliterator를 생성했으므로 estimateSize()는 정확한 값을 반환함
+    * NON-NULL
+      * 탐색하는 모든 요소는 null이 아님
+    * IMMUTABLE
+      * 이 Spliterator의 소스는 불변. 즉 요소를 탐색하는 동안 요소를 추가, 삭제하거나 고칠 수 없음
+    * CONCURRENT
+      * 동기화 없이 Spliterator의 소스를 여러 스레드에서 동시에 고칠 수 있음
+    * SUBSIZED
+      * 이 Spliterator 그리고 분할되는 모든 Spliterator는 SIZED 특성을 가짐
+
+* 커스텀 Spliterator 구현하기
+  * 구현 예제
+    ```
+    public static int countWordsIteratively(String s) {
+		int counter = 0;
+		boolean lastSpace = true;
+
+		for (char c : s.toCharArray()) { // 문자열의 모든 문자를 하나씩 탐색
+
+			if (Character.isWhitespace(c)) {
+				lastSpace = true;
+			} else {
+				// 문자를 하나씩 탐색하다 공백 문자를 만나면 지금까지 탐색한 문자를 단어로 간주하여 (공백 문자는 제외) 단어 수를 증가시킴
+				if (lastSpace) counter++;
+				lastSpace = false;
+			}
+		}
+		return counter;
+	}
+    ```
+  * 단테의 인페르노의 첫 문장으로 위 메서드 실행
+    * http://en.wikipedia.org/wiki/Inferno_(Dante)
+      ```
+      public static final String SENTENCE =
+            " Nel   mezzo del cammin  di nostra  vita "
+                    + "mi  ritrovai in una  selva oscura"
+                    + " che la  dritta via era   smarrita ";
+      ```
+    * 공백이 여러 개일 때도 반복 구현이 제대로 동작된다는 것을 보이고자 문장에 임의로 공백을 추가함
+      * 여러 개의 공백을 공백 하나로 간주함
+    * 결과
+      * Found 19 words
+
+* 함수형 단어 수를 세는 메서드 재구현하기
+  * String을 스트림으로 변환해야 함
+    * 스트림은 int, long, double 기본형만 제공하므로 Stream<Character>를 사용해야 함
+      ``` Stream<Character> stream = IntStream.range(0, SENTENCE.length()).mapToObj(SENTENCE::charAt); ```
+    * 스트림에는 리듀싱 연산을 실행하면서 단어 수를 계산할 수 있음
+      * 이때 지금까지 발견한 단어 수를 계산하는 int 변수와 마지막 문자가 공백이었는지 여부를 기억하는 boolean 변수 등 두 가지 변수가 필요함
+      * 자바에는 튜플이 없으므로 이들 변수 상태를 캡슐화하는 새로운 클래스 WordCounter를 만들어야 함
+        * 튜플 - 래퍼 객체 없이 다형 요소의 정렬 리스트를 표현할 수 있는 구조체
+        ```
+        private static class WordCounter {
+            private final int counter;
+            private final boolean lastSpace;
+    
+            public WordCounter(int counter, boolean lastSpace) {
+                this.counter = counter;
+                this.lastSpace = lastSpace;
+            }
+    
+            // 반복 알고리즘처럼 accumulate 메서드는 문자열의 문자를 하나씩 탐색함
+            public WordCounter accumulate(Character c) {
+                if (Character.isWhitespace(c)) {
+                    return lastSpace ? this : new WordCounter(counter, true);
+                } else {
+                    // 문자를 하나씩 탐색하다 공백 문자를 만나면 지금까지 탐색한 문자를 단어로 간주하여 단어 수를 증가시킴
+                    return lastSpace ? new WordCounter(counter + 1, false) : this;
+                }
+            }
+    
+            public WordCounter combine(WordCounter wordCounter) {
+                // 두 WordCounter의 counter 값을 더함
+                // counter 값만 더할 것이므로 마지막 공백은 신경 쓰지 않음
+                return new WordCounter(counter + wordCounter.counter, wordCounter.lastSpace);
+            }
+    
+            public int getCounter() {
+                return counter;
+            }
+        }
+        ```
+        * accumulate 메서드는 WordCounter의 상태를 어떻게 바꿀 것인지
+          * 또는 엄밀히 WordCounter(속성을 바꿀 수 없는)는 불변 클래스이므로 새로운 WordCounter 클래스를 어떤 상태로 생성할 것인지 정의함
+          * 스트림을 탐색하면서 새로운 문자를 찾을 때마다 accumulate 메서드를 호출함
+          * countWordsIteratively에서처럼 새로운 비공백 문자를 탐색한 다음에 마지막 문자가 공백이면 counter를 증가시킴
+        * 두 번째 메서드 combine은 문자열 서브 스트림을 처리한 WordCounter의 결과를 합침
+          * combine은 WordCounter의 내부 counter 값을 서로 합침
+        * 문자 스트림의 리듀싱 연산을 직관적으로 구현
+          ```
+          private static int countWords(Stream<Character> stream) {
+              WordCounter wordCounter = stream.reduce(new WordCounter(0, true),
+                      WordCounter::accumulate,
+                      WordCounter::combine);
+              return wordCounter.getCounter();
+          }
+          ```
+          * 해당 메서드 호출
+            ```
+            Stream<Character> stream = IntStream.range(0, SENTENCE.length()).mapToObj(SENTENCE::charAt);
+            System.out.println("Found " + countWords(stream) + " words");
+            ```
+
+* WordCounter 병렬로 수행하기
+  * 연산을 병렬 스트림으로 처리
+    ``` System.out.println("Found " + countWords(stream.parallel()) + " words"); ```
+    * 결과 Found 29 words
+  * 원래 문자열을 임의의 위치에서 둘로 나누다보니 예상치 못하게 하나의 단어를 둘로 계산하는 상황이 발생할 수 있음
+    * 순차 스트림을 병렬 스트림으로 바꿀 때 스트림 분할 위치에 따라 잘못된 결과가 나올 수 있음
+    * 문자열을 임의의 위치에서 분할하지 말고 단어가 끝나는 위치에서만 분할하는 방법으로 이 문제를 해결할 수 있음
+    * 그러려면 단어 끝에서 문자열을 분할하는 문자 Spliterator가 필요함
+    * Spliterator를 구현한 다음에 병렬 스트림으로 전달하는 코드
+      ```
+      // 단어 끝에서 문자열을 분할하는 문자 Spliterator
+      private static class WordCounterSpliterator implements Spliterator<Character> {
+          private final String string;
+          private int currentChar = 0;
+      
+          public WordCounterSpliterator(String string) {
+      	      this.string = string;
+          }
+      
+          @Override
+          public boolean tryAdvance(Consumer<? super Character> action) {
+              // 현재 문자 소비
+              action.accept(string.charAt(currentChar++));
+              // 소비할 문자가 남아있으면 true를 반환
+              return currentChar < string.length();
+              }
+      
+          @Override
+          public Spliterator<Character> trySplit() {
+              int currentSize = string.length() - currentChar;
+      
+              if (currentSize < 10) {
+                  // 파싱할 문자열을 순차 처리할 수 있을 만큼 충분히 작아졌음을 알리는 null을 반환
+                  return null;
+              }
+      
+              // 파싱할 문자열의 중간을 분할 위치로 설정
+              for (int splitPos = currentSize / 2 + currentChar; splitPos < string.length(); splitPos++) {
+                  // 다음 공백이 나올 때까지 분할 위치를 뒤로 이동 시킴
+                  if (Character.isWhitespace(string.charAt(splitPos))) {
+                      // 처음부터 분할 위치까지 문자열을 파싱할 새로운 WordCounterSpliterator를 생성
+      	              Spliterator<Character> spliterator =
+                              new WordCounterSpliterator(string.substring(currentChar, splitPos));
+                      // 이 WordCounterSpliterator의 시작 위치를 분할 위치로 설정함
+                      currentChar = splitPos;
+                      // 공백을 찾았고 문자열을 분리했으므로 루프를 종료
+      	              return spliterator;
+                  }
+              }
+      
+              return null;
+          }
+      
+          @Override
+          public long estimateSize() {
+              return string.length() - currentChar;
+          }
+      
+          @Override
+          public int characteristics() {
+              return ORDERED + SIZED + SUBSIZED + NONNULL + IMMUTABLE;
+          }
+      }
+      ```
+      * 분석 대상 문자열로 Spliterator를 생성한 다음에 현재 탐색 중인 문자를 가리키는 인덱스를 이용해 모든 문자를 반복 탐색함
+        * tryAdvance 메서드는 문자열에서 현재 인덱스에 해당하는 문자를 Consumer에 제공한 다음 인덱스를 증가시킴
+          * 인수로 전달된 Consumer는 스트림을 탐색하면서 적용해야 하는 함수 집합이 작업을 처리할 수 있도록 소비한 문자를 전달하는 자바 내부 클래스
+          * 예제에서는 스트림을 탐색하면서 하나의 리듀싱 함수, WordCounter의 accumulate 메서드만 적용
+          * tryAdvance 메서드는 새로운 커서 위치가 전체 문자열 길이보다 작으면 참을 반환
+            * 이는 반복 탐색해야 할 문자가 남아 있음을 의미함
+        * trySplit은 반복될 자료구조를 분할하는 로직을 포함하므로 Spliterator에서 가장 중요한 메서드
+          * 예제에서 구현한 RecursiveTask의 compute 메서드에서 했던 것처럼 우선 분할 동작을 중단할 한계를 설정해야 함
+          * 여기서는 아주 작은 한계값(10개)을 사용했지만 실전 앱에서는 너무 많은 태스크를 만들지 않도록 더 높은 한계값을 설정해야 함
+          * 분할 과정에서 남은 문자 수가 한계값 이하면 null을 반환, 즉 분할을 중지하도록 지시함
+          * 반대로 분할이 필요한 상황에서는 파싱해야 할 문자열 청크의 중간 위치를 기준으로 분할하도록 지시함
+          * 이때 단어 중간을 분할하지 않도록 빈 문자가 나올때까지 분할 위치를 이동시킴
+          * 분할할 위치를 찾았으면 새로운 Spliterator를 만듦
+          * 새로 만든 Spliterator는 현재 위치부터 분할된 위치까지의 문자를 탐색함
+        * 탐색해야 할 요소의 개수(estimateSize)는 Spliterator가 파싱할
+          * 문자열 전체 길이 (string.length())와 현재 반복 중인 위치(currentChar)의 차
+        * characteristic 메서드는 프레임워크에 Spliterator가 
+          * ORDERED(문자열의 문자 등장 순서가 유의미함),
+          * SIZED(estimatedSize 메서드의 반환값이 정확함),
+          * SUBSIZED(trySplit으로 생성된 Spliterator도 정확한 크기를 가짐),
+          * NONNULL(문자열에는 null 문자가 존재하지 않음),
+          * IMMUTABLE(문자열 자체가 불변 클래스이므로 문자열을 파싱하므로 속성이 추가되지 않음)
+          * 등의 특성임을 알려줌
+
+* WordCounterSpliterator 활용
+  * WordCounterSpliterator를 병렬 스트림에 사용할 수 있음
+    ```
+    Spliterator<Character> spliterator = new WordCounterSpliterator(s);
+    Stream<Character> stream = StreamSupport.stream(spliterator, true);
+    
+    System.out.println("Found " + countWords(SENTENCE) + " words");
+    ```
+  * Spliterator는 첫 번째 탐색 시점, 첫 번째 분할 시점, 첫 번째 예상 크기 요청 시점에 요소의 소스를 바인딩 할 수 있음
+    * 이와 같은 동작을 늦은 바인딩 Spliterator라고 부름
+
+### 정리
+* 내부 반복을 이용하면 명시적으로 다른 스레드를 사용하지 않고도 스트림을 병렬로 처리할 수 있음
+* 간단하게 스트림을 병렬로 처리할 수 있지만 항상 병렬 처리가 빠른 것은 아님
+  * 병렬 소프트웨어 동작 방법과 성능은 직관적이지 않을 때가 많으므로 병렬 처리를 사용했을 때 성능을 직접 측정해봐야 함
+* 병렬 스트림으로 데이터 집합을 병렬 실행할 때 특히 처리해야 할 데이터가 아주 많거나 각 요소를 처리하는데 오랜 시간이 걸리 때 성능을 높일 수 있음
+* 가능하면 기본형 특화 스트림을 사용하는 등 올바른 자료구조 선택이 어떤 연산을 병렬로 처리하는 것보다 성능적으로 더 큰 영향을 미칠 수 있음
+* 포크/조인 프레임워크에서는 병렬화할 수 있는 태스크를 작은 태스크로 분할한 다음
+  * 분할된 태스크를 각각의 스레드로 실행하며 서브태스크 각각의 결과를 합쳐서 최종 결과를 생산함
+* Spliterator는 탐색하려는 데이터를 포함하는 스트림을 어떻게 병렬화할 것인지 정의함
+
+### [quiz]
+---
