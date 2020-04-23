@@ -2841,3 +2841,464 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 
 ### [quiz]
 ---
+
+## chapter 08 - 컬렉션 API 개선
+
+### 컬렉션 팩토리
+* 자바 9에서는 작은 컬렉션 객체를 쉽게 만들 수 있는 몇 가지 방법을 제공함
+* 적은 요소를 포함하는 리스트 생성
+  ```
+  List<String> friends = new ArrayList<>();
+  friends.add("Raphael");
+  friends.add("Olivia");
+  friends.add("Thibaut");
+  
+  // 고정 크기의 리스트를 만들었으므로 요소를 갱신할 순 있으나 새 요소를 추가하거나 삭제할 수 없음
+  List<String> friends = Arrays.asList("Raphael", "Olivia", "Thibaut");
+  
+  // UnsupportedOperationException 발생
+  List<String> friends = Arrays.asList("Raphael", "Olivia");
+  friends.set(0, "Richard");
+  friends.add("Thibaut");
+  ```
+* UnsupportedOperationException 예외 발생
+  * 집합 생성
+    ```
+    Set<String> friends = new HashSet<>(Arrays.asList("Raphael", "Olivia", "Thibaut"));
+    
+    Set<String> friends = Stream.of("Raphael", "Olivia", "Thibaut").collect(Collectors.toSet());
+    ```
+    * 위 두 방법은 모두 매끄럽지 못하며 내부적으로 불필요한 객체 할당을 필요로 함
+  * 맵
+    * 작은 맵을 만들 수 있는 멋진 방법은 따로 없음
+  * 자바 9에서는 작은 리스트, 집합, 맵을 쉽게 만들 수 있도록 팩토리 메서드를 제공하기 때문
+
+* 컬렉션 리터럴
+  * 파이썬, 그루비 등을 포함한 일부 언어는 컬렉션 리터럴 즉 [42, 1, 5] 같은 특별한 문법을 이용해 컬렉션을 만들 수 있는 기능을 지원함
+  * 자바에서는 너무 큰 언어 변화와 관련된 비용이 든다는 이유로 이와 같은 기능을 지원하지 못했음
+  * 자바 9에서는 대신 컬렉션 API를 개선했음
+  
+* 리스트 팩토리
+  * List.of 팩토리 메서드를 이용
+    ```
+    List<String> friends = List.of("Raphael", "Olivia", "Thibaut");
+    System.out.println(friends);
+    
+    // UnsupportedOperationException 예외 발생
+    friends.add("Chih-Chun");
+    ```
+    * 변경할 수 없는 리스트이기 때문
+    * set() 메서드로 아이템을 바꾸려해도 비슷한 예외 발생 (set 메서드로도 리스트를 바꿀 수 없음)
+    * 이런 제약은 컬렉션이 의도치 않게 변하는 것을 막아줌
+      * 하지만 요소 자체가 변하는 것을 막을 수 있는 방법은 없음
+    * 리스트를 바꿔야 하는 상황이라면 직접 리스트를 생성
+    * null 요소는 금지하므로 의도치 않은 버그를 방지하고 조금 더 간결한 내부 구현을 달성했음
+  * 새로운 컬렉션 팩토리 메서드 대신 스트림 API를 사용해 리스트를 만들어야 하는지
+    * 데이터 처리 형식을 설정하거나 데이터를 변환할 필요가 없다면 팩토리 메서드 이용을 권장함
+
+* 오버로딩 vs 가변 인수
+  * List 인터페이스에는 List.of의 다양한 오버로드 버전이 있음
+    ```
+    static <E> List<E> of(E e1, E e2, E e3, E e4)
+    static <E> List<E> of(E e1, E e2, E e3, E e4, E e5)
+    ```
+  * 왜 아래와 같이 다중 요소를 받을 수 있도록 자바 API를 만들지 않은 것인지
+    ```
+    static <E> List<E> of(E... elements)
+    ```
+  * 내부적으로 가변 인수 버전은 추가 배열을 할당해서 리스트로 감쌈
+    * 따라서 배열을 할당하고 초기화하며 나중에 가비지 컬렉션을 하는 비용을 지불해야 함
+    * 고정된 숫자의 요소(최대 10개까지)를 API로 정의하므로 이런 비용을 제거할 수 있음
+      * List.of로 열 개 이상의 요소를 가진 리스트를 만들 수도 있지만 이 때는 가변 인수를 이용하는 메서드가 사용됨
+    * Set.of와 Map.of에서도 이와 같은 패턴이 등장함을 확인할 수 있음
+
+* 집합 팩토리
+  * List.of와 비슷한 방법으로 바꿀 수 없는 집합을 만들 수 있음
+    ```
+    Set<String> friends = Set.of("Raphael", "Olivia", "Thibaut");
+    System.out.println(friends);
+    
+    // 중복된 요소를 제공해서 만들려고 하면 IllegalArgumentException 발생
+    Set<String> friends = Set.of("Raphael", "Olivia", "Olivia");
+    ```
+
+* 맵 팩토리
+  * 맵을 만드는 것은 리스트, 집합에 비해 조금 복잡한데 맵을 만드려면 키와 값이 있어야 하기 때문
+  * 자바 9에서는 두 가지 방법
+    * Map.of 팩토리 메서드에 키와 값을 번갈아 제공하는 방법
+      ```
+      Map<String, Integer> ageOfFriends = Map.of("Raphael", 30, "Olivia", 25, "Olivia", 26);
+      ```
+      * 열 개 이하의 키, 값 쌍을 가진 작은 맵을 만들 때 위 메서드가 유용함
+    * Map.ofEntries 팩토리 메서드
+      * 그 이상의 맵에서는 Map.Entry<K, V> 객체를 인수로 받으며 가변 인수로 구현된 Map.ofEntries 팩토리 메서드를 이용하는 것이 좋음
+      * 이 메서드는 키와 값을 감쌀 추가 객체 할당을 필요로 함
+      ```
+      // Map.entry는 Map.Entry 객체를 만드는 새로운 팩토리 메서드
+      import static java.util.Map.entry;
+      
+      Map<String, Integer> ageOfFriends = 
+            Map.ofEntries(entry("Raphael", 30), entry("Olivia", 25), entry("Olivia", 26));
+      System.out.println(ageOfFriends);
+      ```
+
+### 리스트와 집합 처리
+* 자바 8에서는 List, Set 인터페이스에 다음과 같은 메서드를 추가
+  * removeIf
+    * 프레디케이트를 만족하는 요소를 제거
+    * List, Set을 구현하거나 그 구현을 상속받은 모든 클래스에서 이용할 수 있음
+  * replaceAll
+    * 리스트에서 이용할 수 있는 기능으로 UnaryOperator 함수를 이용해 요소를 바꿈
+  * sort
+    * List 인터페이스에서 제공하는 기능으로 리스트를 정렬함
+* 위 메서드는 호출한 컬렉션 자체를 바꿈
+  * 새로운 결과를 만드는 스트림과는 달리 이들 메서드는 기존 컬렉션을 바꿈
+
+* removeIf 메서드
+  * 숫자로 시작되는 참조 코드를 가진 트랜잭션을 삭제하는 코드
+    ```
+    for (Transaction transaction : transactions) {
+        if (Character.isDigit(transaction.getReferenceCode().charAt(0))) {
+            transactions.remove(transaction);
+        }
+    }
+    ```
+    * 위 코드에 문제는 ConcurrentModificationException을 발생시킴
+      * 내부적으로 for-each 루프는 Iterator 객체를 사용하므로 아래와 같이 해석됨
+        ```
+        for (Iterator<Transaction> iterator = transactions.iterator(); iterator.hasNext();) {
+            Transaction transaction = iterator.next();
+            if (Character.isDigit(transaction.getReferenceCode().charAt(0))) {
+                // 반복하면서 별도의 두 객체를 통해 컬렉션을 바꾸고 있는 문제
+                transactions.remove(transaction);
+            }
+        }
+        ```
+        * 두 개의 개별 객체가 컬렉션을 관리함
+          * Iterator 객체 : next(), hasNext()를 이용해 소스를 질의함
+          * Collection 객체 자체 : remove()를 호출해 요소를 삭제함
+        * 결과적으로 반복자의 상태는 컬렉션의 상태와 서로 동기화되지 않음
+          * Iterator 객체를 명시적으로 사용하고 그 객체의 remove() 메서드를 호출함으로 이 문제를 해결할 수 있음
+            ```
+            for (Iterator<Transaction> iterator = transactions.iterator(); iterator.hasNext();) {
+                Transaction transaction = iterator.next();
+                if (Character.isDigit(transaction.getReferenceCode().charAt(0))) {
+                    iterator.remove();
+                }
+            }
+            ```
+          * 이 코드 패턴은 removeIf 메서드로 바꿀 수 있음
+          * removeIf 메서드는 삭제할 요소를 가리키는 프레디케이트를 인수로 받음
+            ```
+            transactions.removeIf(transaction -> Character.isDigit(transaction.getReferenceCode().charAt(0)));
+            ```
+
+* replaceAll 메서드
+  * List 인터페이스의 replaceAll 메서드를 이용해 리스트의 각 요소를 새로운 요소로 바꿀 수 있음
+  * 스트림 API를 사용하면 다음처럼 문제 해결 가능
+    ```
+    referenceCodes.stream()
+            .map(code -> Character.toUpperCase(code.charAt(0)) + code.subString(1))
+            .collect(Collectors.toList())
+            .forEach(System.out::println);
+    ```
+    * 하지만 이 코드는 새 문자열 컬렉션을 만듦
+    * 기존 컬렉션을 바꾸는 것을 원함
+  * ListIterator 객체(요소를 바꾸는 set() 메서드를 지원)를 이용
+    ```
+    for (ListIterator<String> iterator = referenceCodes.listIterator(); iterator.hasNext();) {
+        String code = iterator.next();
+        iterator.set(Character.toUpperCase(code.charAt(0)) + code.substring(1));
+    }
+    ```
+    * 컬렉션 객체를 Iterator 객체와 혼용하면 반복과 컬렉션 변경이 동시에 이루어지면서 쉽게 문제를 일으킴
+  * 자바 8 기능 이용
+    ```
+    referenceCodes.replaceAll(code -> Character.toUpperCase(code.charAt(0)) + code.substring(1));
+    ```
+
+### 맵 처리
+* 자바 8에서는 Map 인터페이스에 몇 가지 디폴트 메서드를 추가함
+
+* forEach 메서드
+  * Map.Entry<K, V>의 반복자를 이용해 맵의 항목 집합 반복
+    ```
+    for (Map.Entry<String, Integer> entry : ageOfFriends.entrySet()) {
+        String friend = entry.getKey();
+        Integer age = entry.getValue();
+        System.out.println(friend + " is " + age + " years old");
+    }
+    ```
+  * 자바 8에서부터 Map 인터페이스는 BiConsumer(키와 값을 인수로 받음)를 인수로 받는 forEach 메서드를 지원
+    ```
+    ageOfFriends.forEach((friend, age) -> System.out.println(friend + " is " + age + " years old"));
+    ```
+
+* 정렬 메서드
+  * 정렬은 반복과 관련한 오랜 고민거리
+  * 두 개의 새로운 유틸리티를 이용하면 맵의 항목을 값 또는 키를 기준으로 정렬할 수 있음
+    * Entry.comparingByValue
+    * Entry.comparingByKey
+    ```
+    Map<String, String> favouriteMovies = Map.ofEntries(
+            entry("Raphael", "Star Wars"),
+            entry("Cristina", "Matrix"),
+            entry("Olivia", "James Bond"));
+
+    favouriteMovies.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEachOrdered(System.out::println); // 사람의 이름을 알파벳 순으로 스트림 요소를 처리함
+    ```
+
+* HashMap 성능
+  * 기존에 맵의 항목은 키로 생성한 해시코드로 접근할 수 있는 버킷에 저장했음
+  * 많은 키가 같은 해시코드를 반환하는 상황이 되면 O(n)의 시간이 걸리는 LinkedList로 버킷을 반환해야 하므로 성능이 저하됨
+  * 최근에는 버킷이 너무 커질 경우 이를 O(log(n))의 시간이 소요되는 정렬된 트리를 이용해 동적으로 치환해 충돌이 일어나는 요소 반환 성능을 개선함
+  * 하지만 키가 String, Number 클래스 같은 Comparable의 형태여야만 정렬된 트리가 지원됨
+
+* getOrDefault 메서드
+  * 기존에는 찾으려는 키가 존재하지 않으면 null이 반환되므로 NullPointerException을 방지하려면 요청 결과가 null인지 확인해야 함
+  * 기본값을 반환하는 방식으로 이 문제를 해결할 수 있음
+  * getOrDefault 메서드를 이용하여 문제 해결
+    * 이 메서드는 첫 번째 인수로 키를, 두 번째 인수로 기본값을 받으며 맵에 키가 존재하지 않으면 두 번째 인수로 받은 기본값을 반환함
+      ```
+      Map<String, String> favouriteMovies = Map.ofEntries(
+            entry("Raphael", "Star Wars"),
+            entry("Cristina", "Matrix"),
+            entry("Olivia", "James Bond"));
+      
+      System.out.println(favouriteMovies.getOrDefault("Olivia", "Matrix"));  // James Bond 출력
+      System.out.println(favouriteMovies.getOrDefault("Thibaut", "Matrix")); // Matrix 출력
+      ```
+    * 키가 존재하더라도 값이 null인 상황에서는 getOrDefault가 null을 반환함
+    * 키가 존재하느냐의 여부에 따라서 두 번째 인수가 반환될지 결정됨
+ 
+* 계산 패턴
+  * 자바 8에서는 키의 값이 존재하는지 여부를 확인할 수 있는 복잡한 몇 개의 패턴 제공
+  * 맵에 키가 존재하는지 여부에 따라 어떤 동작을 실행하고 결과를 저정해야 하는 상황이 필요한 때가 있음
+    * 예를 들어 키를 이용해 값비싼 동작을 실행해서 얻은 결과를 캐시하려 함
+    * 키가 존재하면 결과를 다시 계산할 필요가 없음
+    * 다음 연산이 이런 상황에 도움을 줌
+      * computeIfAbsent
+        * 제공된 키에 해당하는 값이 없으면(값이 없거나 null) 키를 이용해 새 값을 계산하고 맵에 추가함
+      * computeIfPresent
+        * 제공된 키가 존재하면 새 값을 계산하고 맵에 추가함
+      * compute
+        * 제공된 키로 새 값을 계산하고 맵에 저장함
+  * 정보를 캐시할 때 computeIfAbsent 활용 가능
+    * 파일 집합의 각 행을 파싱해 SHA-256을 계산한다고 가정
+    * 기존에 이미 데이터를 처리했다면 이 값을 다시 계산할 필요가 없음
+    * 맵을 이용해 캐시를 구현했다고 가정하면 다음처럼 MessageDigest 인스턴스로 SHA-256 해시를 계산할 수 있음
+      ```
+      Map<String, byte[]> dataToHash = new HashMap<>();
+      MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+      ```
+      * 데이터를 반복하면서 결과를 캐시
+        ```
+        lines.forEach(line ->
+              dataToHash.computeIfAbsent(line, // line은 맵에서 찾을 키
+                      this::calculateDigest)); // 키가 존재하지 않으면 동작 실행
+        
+        // calculateDigest 메서드
+        private byte[] calculateDigest(String key) {
+            return messageDigest.digest(key.getBytes(StandardCharsets.UTF_8));
+        }
+        ```
+    * Raphael에게 줄 영화 목록을 만든다고 가정
+      ```
+      String friend = "Raphael";
+      List<String> movies = friendsToMovies.get(friend);
+      if (movies == null) {
+          movies = new ArrayList<>();
+          friendsToMovies.put(friend, movies);
+      }
+      movies.add("Star Wars"); // 영화 추가
+      System.out.println(friendsToMovies); // {Raphael:[Star Wars]} 출력
+      ```
+      * computeIfAbsent는 키가 존재하지 않으면 값을 계산해 맵에 추가하고 키가 존재하면 기존 값을 반환함
+      * 이를 이용해 다음처럼 코드 구현
+        ```
+        friendsToMovies.computeIfAbsent("Raphael", name -> new ArrayList<>())
+                .add("Star Wars");
+        ```
+  * computeIfPresent 메서드는 현재 키와 관련된 값이 맵에 존재하며 null이 아닐 때만 새 값을 계산함
+    * 이 메서드의 미묘한 실행 과정 주목
+    * 값을 만드는 함수가 null을 반환하면 현재 매핑을 맵에서 제거함
+    * 하지만 매핑을 제거할 때는 remove 메서드를 오버라이드하는 것이 더 적합함
+
+* 삭제 패턴
+  * 제공된 키에 해당하는 맵 항목을 제거하는 remove 메서드
+  * 자바 8에서는 키가 특정한 값과 연관되었을 때만 항목을 제거하는 오버로드 버전 메서드 제공
+  * 기존에는 다음처럼 코드를 구현함
+    ```
+    String key = "Raphael";
+    String value = "Jack Reacher 2";
+    
+    if (favouriteMovies.containsKey(key) && Objects.equals(favouriteMovies.get(key), value)) {
+        favouriteMovies.remove(key);
+        return true;
+    }
+    return false;
+    ```
+  * remove 메서드
+    ```
+    favouriteMovies.remove(key, value);
+    ```
+
+* 교체 패턴
+  * 맵의 항목을 바꾸는 데 사용할 수 있는 두 개의 메서드가 맵에 추가됨
+    * replaceAll
+      * BiFunction을 적용한 결과로 각 항목의 값을 교체함
+      * List의 replaceAll과 비슷한 동작 수행
+      ```
+      Map<String, String> favouriteMovies = new HashMap<>();
+      favouriteMovies.put("Raphael", "Star Wars");
+      favouriteMovies.put("Olivia", "james bond");
+
+      favouriteMovies.replaceAll((friend, movie) -> movie.toUpperCase());
+      System.out.println(favouriteMovies);
+      ```
+    * Replace
+      * 키가 존재하면 맵의 값을 바꿈
+      * 키가 특정 값으로 매핑되었을 때만 값을 교체하는 오버로드 버전도 있음
+
+* 합침
+  * 두 개의 맵에서 값을 합치거나 바꿀 때
+  * 두 그룹의 연락처를 포함하는 두 개의 맵을 합친다고 가정, putAll 사용
+    ```
+    Map<String, String> family = Map.ofEntries(
+            entry("Teo", "Star Wars"), entry("Cristina", "James Bond"));
+    Map<String, String> friends = Map.ofEntries(entry("Raphael", "Star Wars"));
+
+    Map<String, String> everyone = new HashMap<>(family);
+    everyone.putAll(friends);
+    System.out.println(everyone);
+    ```
+    * 중복된 키가 없다면 위 코드는 잘 동작함
+    * 값을 좀 더 유연하게 합칠 때 merge 메서드 이용
+      * 이 메서드는 중복된 키를 어떻게 합칠지 결정하는 BiFunction()을 인수로 받음
+      * family와 friends 두 맵 모두에 Cristina가 다른 영화 값으로 존재한다고 가정
+        ```
+        Map<String, String> family = Map.ofEntries(
+                entry("Teo", "Star Wars"), entry("Cristina", "James Bond"));
+		Map<String, String> friends = Map.ofEntries(
+				entry("Raphael", "Star Wars"), entry("Cristina", "Matrix"));
+        ```
+      * forEach와 merge 메서드를 이용해 충돌 해결 가능
+        ```
+		Map<String, String> everyone = new HashMap<>(family);
+		friends.forEach((k, v) -> everyone.merge(k, v, 
+                (movie1, movie2) -> movie1 + " & " + movie2)); // 중복된 키가 있으면 두 값을 연결
+		System.out.println(everyone);
+        ```
+      * 자바독에서 설명하는 것처럼 merge 메서드는 null값과 관련된 복잡한 상황도 처리함
+        * 지정된 키와 연관된 값이 없거나 null이면 [merge]는 키를 null이 아닌 값과 연결함
+        * 아니면 [merge]는 연결된 값을 주어진 매핑 함수의 [결과]값으로 대치하거나 결과가 null이면 [항목]을 제거함
+    * merge를 이용해 초기화 검사를 구현
+      * 영화를 몇 회 시청했는지 기록하는 맵이 있다고 가정
+      * 해당 값을 증가시키기 전에 관련 영화가 이미 맵에 존재하는지 확인해야 함
+        ```
+        Map<String, Long> moviesToCount = new HashMap<>();
+        String movieName = "JamesBond";
+        long count = moviesToCount.get(movieName);
+        
+        if (count == null) {
+            movieToCount.put(movieName, 1);
+        } else {
+            movieToCount.put(movieName, count + 1);
+        }
+        ```
+        * 위 코드 변환
+          ``` moviesToCount.merge(movieName, 1L, (key, count)-> count + 1L); ```
+          * 위 코드에서 merge의 두 번째 인수는 1L
+          * 자바독에 따르면 이 인수는
+            * "키와 연관된 기존 값에 합쳐질 null이 아닌 값 또는 값이 없거나 키에 null값이 연관되어 있다면 이 값을 키와 연결" 하는데 사용됨
+          * 키의 반환값이 null이므로 처음에는 1이 사용됨
+          * 그 다음부터는 값이 1로 초기화되어 있으므로 BiFunction을 적용해 값이 증가됨
+
+### 개선된 ConcurrentHashMap
+* ConcurrentHashMap 클래스는 동시성 친화적이며 최신 기술을 반영한 HashMap 버전
+  * 내부 자료구조의 특정 부분만 잠궈 동시 추가, 갱신 작업을 허용함
+  * 따라서 동기화된 HashTable 버전에 비해 읽기 쓰기 연산 성능이 월등함 (표준 HashMap은 비동기로 동작함)
+* 리듀스와 검색
+  * forEach
+    * 각 (키, 값) 쌍에 주어진 액션을 수행 
+  * reduce
+    * 모든 (키, 값) 쌍을 제공된 리듀스 함수를 이용해 결과로 합침
+  * search
+    * null이 아닌 값을 반환할 때까지 각 (키, 값) 쌍에 함수를 적용
+  * 키에 함수 받기, 값, Map.Entry, (키, 값) 인수를 이용한 네 가지 연산 형태를 지원함
+    * 키, 값으로 연산
+      * forEach, reduce, search
+    * 키로 연산
+      * forEachKey, reduceKeys, searchKeys
+    * 값으로 연산
+      * forEachValue, reduceValues, searchValues
+    * Map.Entry 객체로 연산
+      * forEachEntry, reduceEntries, searchEntries
+    * 이 연산들은 ConcurrentHashMap의 상태를 잠그지 않고 연산을 수행함
+      * 따라서 이들 연산에 제공한 함수는 게산이 진행되는 동안 바뀔 수 있는 객체, 값, 순서 등에 의존하지 않아야 함
+      * 또한 이들 연산에 병렬성 기준값(threshold)을 지정해야 함
+      * 맵의 크기가 주어진 기준값보다 작으면 순차적으로 연산을 실행함
+      * 기준값을 1로 지정하면 공통 스레드 풀을 이용해 병렬성을 극대화 함
+      * Long.MAX_VALUE를 기준값으로 설정하면 한 개의 스레드로 연산을 실행함
+      * 소프트웨어 아키텍처가 고급 수준의 자원 활용 최적화를 사용하고 있지 않다면 기준값 규칙을 따르는 것이 좋음
+      * reduceValues 메서드를 이용해 맵의 최댓값을 찾는 예제
+        ```
+        // 여러 키와 값을 포함하도록 갱신될 ConcurrentHashMap
+        ConcurrentHashMap<String, Long> map = new ConcurrentHashMap<>();
+        long parallelismThreshold = 1;
+        Optional<Integer> maxValue = 
+                Optional.ofNullable(mpa.reduceValues(parallelismThreshold, Long::max));
+        ```
+      * int, long, double 등의 기본값에는 전용 each reduce 연산이 제공되므로 reduceValuesToInt, reduceKeysToLong 등을 이용할 것
+        * 박싱 작업 등을 할 필요가 없고 효율적으로 작업을 처리할 수 있음
+
+* 계수
+  * ConcurrentHashMap 클래스는 맵의 매핑 개수를 반환하는 mappingCount 메서드 제공
+  * 기존 size 메서드 대신 새 코드에서는 int를 반환하는 mappingCount 메서드를 사용하는 것이 좋음
+    * 그래야 매핑의 개수가 int의 범위를 넘어서는 이후의 상황을 대처할 수 있기 때문
+
+* 집합뷰
+  * ConcurrentHashMap 클래스는 ConcurrentHashMap을 집합 뷰로 반환하는 keySet 메서드를 제공함
+  * 맵을 바꾸면 집합도 바뀌고 반대로 집합을 바꾸면 맵도 영향을 받음
+  * newKeySet이라는 새 메서드를 이용해 ConcurrentHashMap으로 유지되는 집합을 만들 수 있음
+
+### 정리
+* 자바 9는 적의 원소를 포함하며 바꿀 수 없는 리스트, 집합, 맵을 쉽게 만들 수 있도록 컬렉션 팩토리를 지원함
+  * List.of, Set.of, Map.of, Map.ofEntries 등
+* 이들 컬렉션 팩토리가 반환한 객체는 만들어진 다음 바꿀 수 없음
+* List 인터페이스는 removeIf, replaceAll, sort 세 가지 디폴트 메서드를 지원함
+* Set 인터페이스는 removeIf 디폴트 메서드를 지원
+* Map 인터페이스는 자주 사용하는 패턴과 버그를 방지할 수 있도록 다양한 디폴트 메서드를 지원함
+* ConcurrentHashMap은 Map에서 상속받은 새 디폴트 메서드를 지원함과 동시에 스레드 안정성도 제공함
+
+### [quiz]
+* 다음 코드 실행 결과는?
+  ```
+  List<String> actors = List.of("Keanu", "Jessica");
+  actors.set(0, "Brad");
+  System.out.println(actors);
+  ```
+  * 정답
+    * UnsupportedOperationException 발생함. List.of로 만든 컬렉션은 바꿀 수 없기 때문
+
+* 다음 코드가 어떤 작업을 수행하는지 파악한 다음 코드를 단순화 할 수 있는 방법 설명하기
+  ```
+  Map<String, Integer> movies = new HashMap<>();
+  movies.put("JamesBond", 20);
+  movies.put("Matrix", 15);
+  movies.put("Harry Potter", 5);
+  Iterator<Map.Entry<String, Integer>> iterator = movies.entrySet().iterator();
+  
+  while(iterator.haxNext()) {
+      Map.Entry<String, Integer> entry = iterator.next();
+      if (entry.getValue() < 10) {
+          iterator.remove();
+      }
+  }
+  System.out.println(movies);
+  ```
+  * 정답
+    ``` movies.entrySet().removeIf(entry -> entry.getValue() < 10; ```
+---
