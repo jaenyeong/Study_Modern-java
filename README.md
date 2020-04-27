@@ -1046,7 +1046,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
     ```
 
 * null이 될 수 있는 객체로 스트림 만들기
-  * 자바 9에서 null이 될 수 있는 개체를 스트림으로 만들 수 있는 새로운 메소드 추가
+  * 자바 9에서 null이 될 수 있는 개체를 스트림으로 만들 수 있는 새로운 메서드 추가
     * 기존
       ```
       String homeValue = System.getProperty("home");
@@ -1107,7 +1107,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
       * 이러한 스트림을 언바운드 스트림(unbounded stream)이라 표현함
       * 이런 특징이 컬렉션과 차이점
     * 일반적으로 연속된 일련의 값을 만들때는 iterate를 사용
-    * 자바 9의 iterate 메소드는 프레디케이트를 지원함
+    * 자바 9의 iterate 메서드는 프레디케이트를 지원함
       * 예를 들어 0에서 시작해 100보다 크면 숫자 생성을 중단하는 코드를 아래와 같이 작성할 수 있음
         ```
         IntStream.iterate(0, n < 100, n -> n + 4)
@@ -2150,7 +2150,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
         return list;
     }
     ```
-  * 위 메소드를 이용해 isPrime 메소드를 다시 구현. 이번에도 대상 숫자의 제곱근보다 작은 소수만 검사
+  * 위 메서드를 이용해 isPrime 메서드를 다시 구현. 이번에도 대상 숫자의 제곱근보다 작은 소수만 검사
     ```
     public static boolean isPrime(List<Integer> primes, int candidate) {
         int candidateRoot = (int) Math.sqrt((double) candidate);
@@ -3301,4 +3301,778 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   ```
   * 정답
     ``` movies.entrySet().removeIf(entry -> entry.getValue() < 10; ```
+---
+
+## chapter 09 - 리팩터링, 테스팅, 디버깅
+### 가독성과 유연성을 개선하는 리팩토링
+
+* 코드 가독성 개선
+  * 일반적으로 코드 가독성이 좋다는 것은 '어떤 코드를 다른 사람도 쉽게 이해할 수 있음'을 의미함
+  * 즉, 코드 가독성을 개선한다는 것은 우리가 구현한 코드를 다른 사람이 쉽게 이해하고 유지보수할 수 있게 만드는 것을 의미
+  * 코드 가독성을 높이려면 코드의 문서화를 잘하고, 표준 코딩 규칙을 준수하는 등의 노력을 기울여야 함
+
+* 익명 클래스를 람다 표현식으로 리팩터링하기
+  * 익명 클래스는 코드를 장황하게 만들고 쉽게 에러를 일으킴
+  * 예를 들어 아래는 Runnable 객체를 만드는 익명 클래스, 람다 표현식
+    ```
+    Runnable r1 = new Runnable() {
+        @Override
+        public void run() {
+            System.out.println("Hello1");
+        }
+    };
+
+    Runnable r2 = () -> System.out.println("Hello2");
+    ```
+  * 하지만 모든 익명 클래스를 람다 표현식으로 변환할 수 없음
+    * 첫째, 익명 클래스에서 사용한 this와 super는 람다 표현식에서 다른 의미를 가짐
+      * 익명 클래스에서 this는 익명 클래스 자신을 가리키지만 람다에서 this는 람다를 감싸는 클래스를 가리킴
+    * 둘째, 익명 클래스는 감싸고 있는 클래스의 변수를 가릴 수 있음(shadow variable)
+      * 하지만 람다 표현식으로는 변수를 가릴 수 없음
+      * 아래 코드는 컴파일되지 않음
+        ```
+        int a = 10;
+        Runnable r1 = () -> {
+            int a = 2; // 컴파일 에러
+            System.out.println(a);
+        };
+
+        Runnable r2 = new Runnable() {
+            @Override
+            public void run() {
+                int a = 2; // 작동
+                System.out.println(a);
+            }
+        };
+        ```
+    * 마지막으로 익명 클래스를 람다 표현식으로 바꾸면 컨텍스트 오버로딩에 따른 모호함이 초래될 수 있음
+      * 익명 클래스는 인스턴스화할 때 명시적으로 형식이 정해지는 반면 람다의 형식은 컨텍스트에 따라 달라짐
+      * 아래 예제에서는 Task라는 Runnable과 같은 시그니처를 갖는 함수형 인터페이스를 선언
+        ```
+        interface Task {
+            public void execute();
+        }
+    
+        public static void doSomething(Runnable r) {r.run();}
+        public static void doSomething(Task t) {t.execute();}
+        
+        // Task를 구현하는 익명 클래스 전달
+        doSomething(new Task() {
+            @Override
+            public void execute() {
+                System.out.println("Danger danger!!");
+            }
+        });
+
+        // doSomething(Runnable), doSomething(Task) 메서드 모두 대상 형식이 되서 문제
+		doSomething(() -> System.out.println("Danger"));
+
+        // 명시적 해결
+        doSomething((Task)() -> System.out.println("Danger"));
+        ```
+
+* 람다 표현식을 메서드 참조로 리팩터링하기
+  * 람다 표현식 대신 메서드 참조를 이용하면 가독성을 높일 수 있음
+  * 메서드 참조의 메서드명으로 코드의 의도를 명확하게 알릴 수 있기 때문
+    * 예를 들어 칼로리 수준으로 요리를 그룹화 하는 코드
+      ```
+	  Map<CaloricLevel, List<Dish>> dishesByCaloricLevel =
+	          menu.stream()
+                    .collect(groupingBy(dish -> {
+                        if (dish.getCalories() <= 400) return CaloricLevel.DIET;
+                        else if (dish.getCalories() <= 700) return CaloricLevel.NORMAL;
+                        else return CaloricLevel.FAT;
+                    }));
+      ```
+      ```
+      Map<CaloricLevel, List<Dish>> dishesByCaloricLevel =
+              menu.stream().collect(groupingBy(Dish::getCaloricLevel));
+      
+      public class Dish {
+          public CaloricLevel getCaloricLevel() {
+              if (getCalories() <= 400) return CaloricLevel.DIET;
+              else if (getCalories() <= 700) return CaloricLevel.NORMAL;
+              else return CaloricLevel.FAT;
+          }
+      }
+      ```
+    * comparing, maxBy 같은 정적 헬퍼 메서드를 활용하는 것도 좋음. 이들은 메서드 참조화 조화를 이루도록 설계되었음
+    * 3장 예제
+      ```
+      inventory.sort(
+            (Apple a1, Apple a2) -> a1.getWeight().compareTo(a2.getWeight())); // 비교 구현에 신경 써야 함
+      inventory.sort(comparing(Apple::getWeight)); // 코드가 문제 자체를 설명함
+      ```
+    * sum, maximum 등 자주 사용하는 리듀싱 연산은 메서드 참조와 함께 사용할 수 있는 내장 헬퍼 메서드를 제공
+      * 최댓값이나 합계를 계산할 때 람다 표현식과 저수준 리듀싱 연산을 조합하는 것보다 Collectors API를 사용하면 코드의 의도가 더 명확해짐
+      * 저수준 리듀싱 연산 조합 코드
+        ```
+        int totalCalories = menu.stream().map(Dish::getCalories).reduce(0, (c1, c2) -> c1 + c2);
+        ```
+      * 내장 컬렉터를 이용하면 코드 자체로 문제를 더 명확하게 설명 가능
+      * summingInt 사용
+        ``` int totalCalories = menu.stream().collect(summingInt(Dish::getCalories)); ```
+
+* 명령형 데이터 처리를 스트림으로 리팩터링하기
+  * 이론적으로는 반복자를 이용한 기존의 모든 컬렉션 처리 코드를 스트림 API로 바꿔야 함
+    * 스트림 API는 데이터 처리 파이프라인의 의도를 더 명확하게 보여주기 때문
+    * 스트림은 쇼트서킷과 게으름이라는 강력한 최적화뿐 아니라 멀티코어 아키텍처를 활용할 수 있는 지름길을 제공함
+  * 다음 명령형 코드는 두 가지 패턴으로 엉킨 코드
+    ```
+    List<String> dishNames = new ArrayList<>();
+    for (Dish dish : menu) {
+        if (dish.getCalories() > 300) {
+            dishNames.add(dish.getName());
+        }
+    }
+    ```
+    * 스트림 API 사용
+      ```
+      menu.parallelStream().filter(d -> d.getCalories() > 300)
+            .map(Dish::getName)
+            .collect(toList());
+      ```
+  * 명령형 코드의 break, continue, return 등 제어 흐름문을 분석
+  * 같은 기능을 수행하는 스트림 연산으로 유추해야 하므로 명령형 코드를 스트림 API로 바꾸는 것은 쉬운 일이 아님
+  * 명령형 코드를 스트림 API로 바꾸도록 도움을 주는 몇 가지 도구
+    * 접속 안됨 ~~http://goo.gl/Ma15w9(http://refactoring.info/tools/LambdaFicator)~~
+
+* 코드 유연성 개선
+  * 함수형 인터페이스 적용
+    * 람다 표현식을 이용하려면 함수형 인터페이스 필요
+    * 함수형 인터페이스를 코드에 추가해야 함
+    * 조건부 연기 실행(conditional deferred execution)과 실행 어라운드(execute around) 두 가지 자주 사용하는 패턴으로 람다 표현식 리팩터링
+  * 조건부 연기 실행(conditional deferred execution)
+    * 실제 작업을 처리하는 코드 내부에 제어 흐름문이 복잡하게 얽힌 코드를 흔히 볼 수 있음
+      * 흔히 보안 검사나 로깅 관련 코드
+    * 다음은 내장 자바 Logger 클래스 예제
+      ```
+      if (logger.isLoggable(Log.FINER)) {
+          logger.finder("problem: " + generateDiagnostic());
+      }
+      ```
+      * 위 코드에 문제
+        * logger의 상태가 isLoggable이라는 메서드에 의해 클라이언트 코드로 노출됨
+        * 메시지를 로깅할 때마다 logger 객체의 상태를 매번 확인해야 할까?, 이들은 코드를 어지럽힐 뿐
+      * 다음처럼 메시지를 로깅하기 전에 logger 객체가 적절한 수준으로 설정되었는지 내부적으로 확인하는 log 메서드를 사용하는 것이 바람직
+        ``` logger.log(Level.FINER, "Problem: " + generateDiagnostic()); ```
+        * 불필요한 if문을 제거할 수 있으며, logger의 상태를 노출할 필요도 없음
+        * 하지만 인수로 전달된 메시지 수준에서 logger가 활성화되어 있지 않더라도 항상 로깅 메시지를 평가하게 되는 문제
+      * 람다를 이용하여 해결
+        * 특정 조건에서만 메시지가 생성될 수 있도록 메시지 생성 과정을 연기할 수 있어야 함
+        * 자바 8 API 설계자는 이와 같은 logger 문제를 해결할 수 있도록 Supplier 인수로 갖는 오버로드된 log 메서드를 제공함
+        * 새로 추가된 log 메서드 시그니처
+          ``` public void log(Level level, Supplier<String> msgSupplier) ```
+        * log 메서드 호출
+          ``` logger.log(Level.FINER, () -> "Problem: " + generateDiagnostic()); ```
+          * log 메서드는 logger의 수준이 적절하게 설정되어 있을 때만 인수로 넘겨진 람다를 내부적으로 실행함
+          * log 메서드의 내부 구현 코드
+            ```
+            public void log(Level level, Suppler<String> msgSupplier) {
+                if (logger.isLoggable(level)) {
+                    log(level, msgSupplier.get()); // 람다 실행
+                }
+            }
+            ```
+      * 만일 클라이언트 코드에서 객체 상태를 자주 확인하거나(예를 들면 logger의 상태)
+      * 객체의 일부 메서드를 호출하는 상황(예를 들면 메시지 로깅)이라면 
+      * 내부적으로 객체의 상태를 확인한 다음에 메서드를 호출(람다나 메서드 참조를 인수로 사용)하도록 새로운 메서드를 구현하는 것이 좋음
+      * 그러면 코드 가독성이 좋아질 뿐 아니라 캡슐화도 강회됨 (객체 상태가 클라이언트 코드로 노출되지 않음)
+  * 실행 어라운드(execute around)
+    * 매번 같은 준비, 종료 과정을 반복적으로 수행하는 코드가 있다면 이를 람다로 변환할 수 있음
+    * 준비, 종료 과정을 처리하는 로직을 재사용함으로써 코드 중복을 줄일 수 있음
+    * 다음은 3장 코드
+      ```
+      String oneLine = processFile((BufferedReader b) -> b.readLine()); // 람다 전달
+      String twoLines = processFile((BufferedReader b) -> b.readLine() + b.readLine()); // 다른 람다 전달
+      
+      // IOException을 던질 수 있는 람다의 함수형 인터페이스
+      public static String processFile(BufferedReaderProcessor p) throws IOException {
+          try (BufferedReader br = new BufferedReader(new FileReader("com/jaenyeong/chapter_09/data.txt"))) {
+              return p.process(br); // 인수로 전달된 BufferedReaderProcessor를 실행
+          }
+      }
+      
+      @FunctionalInterface
+      public interface BufferedReaderProcessor {
+          String process(BufferedReader b) throws IOException;
+      }
+      ```
+      * 람다로 BufferedReader 객체의 동작을 결졍할 수 있는 것은 함수형 인터페이스 BufferedReaderProcessor 덕분
+
+### 람다로 객체지향 디자인 패턴 리팩터링하기
+* 언어에 새로운 기능이 추가되면서 기존 코드 패턴이나 관용코드의 인기가 식기도 함
+  * 예를 들어 자바 5에서 추가된 for-each 루프는 에러 발생률이 적으며 간결하므로 기존의 반복자 코드를 대체함
+  * 자바 7에 추가된 다이아몬드 연산자<> 때문에 기존의 제네릭 인스턴스를 명시적으로 생성하는 빈도가 줄었음
+* 다양한 패턴을 유형별로 정리한 것이 디자인 패턴
+  * 디자인 패턴은 공통적인 소프트웨어 문제를 설계할 때 재 사용할 수 있는, 검증된 청사진을 제공함
+  * 재사용할 수 있는 부품으로 여러 가지 다리를 건설하는 엔지니어링에 비유할 수 있음
+  * 예를 들어 구조체와 동작하는 알고리즘을 서로 분리하고 싶을 때 방문자 디자인 패턴(visitor design pattern)을 사용할 수 있음
+  * 또 싱글턴 패턴(singleton pattern)을 이용해서 클래스 인스턴스화를 하나의 객체로 제한할 수 있음
+
+* 전략
+  * 전략 패턴은 한 유형의 알고리즘을 보유한 상태에서 런타임에 적절한 알고리즘을 선택하는 기법
+  * 다양한 기준을 갖는 입력값을 검증하거나, 다양한 파싱 방법을 사용하거나, 입력 형식을 설정하는 등 다양한 시나리오에 전략 패턴을 활용할 수 있음
+  * 전략 패턴은 세 부분으로 구성됨
+    * 클라이언트
+      * 전략 객체를 사용하는 한 개 이상의 클라이언트
+    * 전략 - execute()
+      * 알고리즘을 나타내는 인터페이스(Strategy 인터페이스)
+    * ConcreateStrategyA, ConcreateStrategyB
+      * 다양한 알고리즘을 나타내는 한 개 이상의 인터페이스 구현(구체적인 구현 클래스)
+  * 예를 들어 오직 소문자 또는 숫자로 이루어져야 하는 등 텍스트 입력이 다양한 조건에 맞게 포맷 되어 있는지 검증한다고 가정
+    * 먼저 String 문자열을 검증하는 인터페이스부터 구현
+      ```
+      public interface ValidationStrategy {
+          boolean execute(String s);
+      }
+      ```
+    * 위 인터페이스를 구현하는 클래스를 하나 이상 정의
+      ```
+      public class IsAllLowerCase implements ValidationStrategy {
+      
+          @Override
+          public boolean execute(String s) {
+              return s.matches("[a-z]+");
+          }
+      }
+      
+      public class IsNumeric implements ValidationStrategy {
+      
+          @Override
+          public boolean execute(String s) {
+              return s.matches("\\d+");
+          }
+      }
+      ```
+    * 다양한 검증 전략으로 활용
+      ```
+      public class Validator {
+          private final ValidationStrategy strategy;
+      
+          public Validator(ValidationStrategy strategy) {
+              this.strategy = strategy;
+          }
+      
+          public boolean validate(String s) {
+              return strategy.execute(s);
+          }
+      }
+      ```
+    * 사용
+      ```
+      Validator numericValidator = new Validator(new IsNumeric());
+      boolean b1 = numericValidator.validate("aaaa"); // false 반환
+
+      Validator lowerCaseValidator = new Validator(new IsAllLowerCase());
+      boolean b2 = lowerCaseValidator.validate("bbbb"); // true 반환
+      ```
+    * 람다 표현식 사용
+      * ValidationStrategy는 함수형 인터페이스며 Predicate<String>과 같은 함수 디스크립터를 갖고 있음
+      * 따라서 다양한 전략을 구현하는 새로운 클래스를 구현할 필요 없이 람다 표현식을 직접 전달하면 코드가 간결해짐
+        ```
+        Validator numericValidator = new Validator(s -> s.matches("[a-z]+"));
+        boolean b1 = numericValidator.validate("aaaa");
+
+        Validator lowerCaseValidator = new Validator(s -> s.matches("\\d+"));
+        boolean b2 = lowerCaseValidator.validate("bbbb");
+        ```
+    * 람다 표현식을 이용하면 전략 디자인 패턴에서 발생하는 자잘한 코드를 제거할 수 있음
+      * 람다 표현식은 코드 조각(또는 전략)을 캡슐화 함
+      * 람다 표현식으로 디자인 패턴을 대신할 수 있음
+    
+* 템플릿 메서드
+  * 알고리즘의 개요를 제시한 다음에 알고리즘의 일부를 고칠 수 있는 유연함을 제공해야 할 때 사용
+  * 다시 말해 '이 알고리즘을 사용하고 싶은데 그대로는 안되고 조금 고쳐야 하는' 상황에 적합
+  * 온라인 뱅킹 앱 구현한다고 가정
+    * 사용자가 고객 ID를 앱에 입력하면 은행 데이터베이스에서 고객 정보를 가져오고 고객이 원하는 서비스를 제공할 수 있음
+    * 예를 들어 고객 계좌에 보너스를 입금한다고 가정
+    * 은행마다 다양한 온라인 뱅킹 앱을 사용하며 동작 방법도 다름
+    * 온라인 뱅킹 앱 동작을 정의하는 추상 클래스
+      ```
+	  abstract class OnlineBanking {
+
+	      public void processCustomer(int id) {
+              Customer c = Database.getCustomerWithId(id);
+              makeCustomerHappy(c);
+          }
+
+	      abstract void makeCustomerHappy(Customer c);
+	  }
+      ```
+      * processCustomer 메서드는 온라인 뱅킹 알고리즘이 해야 할 일을 보여줌
+        * 우선 주어진 고객 ID를 이용해 고객을 만족시켜야 함
+        * 각각의 지점은 OnlineBanking 클래스를 상속받아 makeCustomerHappy 메서드가 원하는 동작을 수행하도록 구현할 수 있음
+  * 람다 표현식 사용
+    * 이전에 정의한 makeCustomerHappy의 메서드 시그니처와 일치하도록 Consumer<Customer> 형식을 갖는 두 번째 인수를 processCustomer에 추가
+      ```
+	  public void processCustomer(int id, Consumer<Customer> makeCustomerHappy) {
+	      Customer c = Database.getCustomerWithId(id);
+	      makeCustomerHappy.accept(c);
+      }
+      ```
+    * 사용
+      ```
+      new TemplateMethodRefactor().processCustomer(1337, (Customer c) -> System.out.println("Hello!"));
+      ```
+
+* 옵저버
+  * 어떤 이벤트가 발생했을 때 한 객체(주제라 불리는, subject)가 다른 객체 리스트(옵저버, observer)에 자동으로 알림을 보내야 하는 상황에 사용
+  * GUI 앱에서 옵저버 패턴이 자주 사용됨
+  * 버튼 같은 GUI 컴포넌트에 옵저버를 설정할 수 있음
+  * 그리고 사용자가 버튼을 클릭하면 옵저버에 알림이 전달되고 정해진 동작이 수행됨
+  * 꼭 GUI에서만 옵저버 패턴을 사용하는 것이 아님
+  * 예를 들어 주식의 가격(주제) 변동에 반응하는 다수의 거래자(옵저버) 예제에서도 옵저버 패턴을 사용할 수 있음
+    * 옵저버
+      * 주제
+        * notifyObserver()
+      * 옵저버
+        * notify()
+      * ConcreateObserverA, ConcreateObserverB
+  * 옵저버 패턴으로 트위터 같은 커스터마이즈된 알림 시스템을 설계, 구현할 수 있음
+    * 다양한 옵저버를 그룹화할 Observer 인터페이스 필요
+      * Observer 인터페이스는 새로운 트윗이 있을 때 주제가 호출될 수 있도록 notify라고 하는 하나의 메서드를 제공함
+        ```
+        interface Observer {
+            void notify(String tweet);
+        }
+        ```
+      * 여러 옵저버 정의
+        ```
+        class NYTimes implements Observer {
+    
+            @Override
+            public void notify(String tweet) {
+                if (tweet != null && tweet.contains("money")) {
+                    System.out.println("Breaking news in NY! " + tweet);
+                }
+            }
+        }
+    
+        class Guardian implements Observer {
+    
+            @Override
+            public void notify(String tweet) {
+                if (tweet != null && tweet.contains("queen")) {
+                    System.out.println("Yet more news from London... " + tweet);
+                }
+            }
+        }
+    
+        class LeMonde implements Observer {
+    
+            @Override
+            public void notify(String tweet) {
+                if (tweet != null && tweet.contains("wine")) {
+                    System.out.println("Today cheese, wine and news! " + tweet);
+                }
+            }
+        }
+        ```
+      * 주제 구현
+        * Subject 인터페이스 구현
+          ```
+          interface Subject {
+              void registerObserver(Observer o);
+              void notifyObservers(String tweet);
+          }
+          ```
+        * 주제는 registerObserver 메서드로 새로운 옵저버를 등록한 다음에 notifyObservers 메서드로 트윗의 옵저버에 이를 알림
+          ```
+          class Feed implements Subject {
+              private final List<Observer> observers = new ArrayList<>();
+          
+              @Override
+              public void registerObserver(Observer o) {
+                  observers.add(o);
+              }
+          
+              @Override
+              public void notifyObservers(String tweet) {
+                  observers.forEach(o -> o.notify(tweet));
+              }
+          }
+          ```
+  * 람다 표현식 사용
+    * 여기서 Observer 인터페이스를 구현하는 모든 클래스는 하나의 메서드 notify를 구현했음
+      * 즉 트윗이 도착했을 때 어떤 동작을 수행할 것인지 감사는 코드를 구현한 것
+      * 세 개의 옵저버를 명시적으로 인스턴스화하지 않고 람다 표현식을 직접 전달해서 실행할 동작을 지정할 수 있음
+      ```
+      f.registerObserver((String tweet) -> {
+          if (tweet != null && tweet.contains("money")) {
+              System.out.println("Breaking news in NY! " + tweet);
+          }
+      });
+
+      f.registerObserver((String tweet) -> {
+          if (tweet != null && tweet.contains("queen")) {
+              System.out.println("Yet more news from London... " + tweet);
+          }
+      });
+      ```
+    * 옵저버가 상태를 가지며, 여러 메서드를 정의하는 등 복잡하다면 람다 표현식보다 기존의 클래스 구현방식을 고수하는 것이 바람직할 수도 있음
+
+* 의무 체인
+  * 작업 처리 객체의 체인(동작 체인 등)을 만들 때는 의무 체인 패턴을 사용함
+  * 한 객체가 어떤 작업을 처리한 다음에 다른 객체로 결과를 전달하고, 다른 객체도 해야 할 작업을 처리한 다음에 또 다른 객체로 전달하는 식
+  * 일반적으로 다음으로 처리할 객체 정보를 유지하는 필드를 포함하는 작업 처리 추상 클래스로 의무 체인 패턴을 구성함
+    * 작업 처리 객체가 자신의 작업을 끝냈으면 다음 작업 처리 객체로 결과를 전달함
+      ```
+      public abstract class ProcessingObject<T> {
+          protected ProcessingObject<T> successor;
+  
+          public void setSuccessor(ProcessingObject<T> successor) {
+              this.successor = successor;
+          }
+  
+          public T handle(T input) {
+              T r = handleWork(input);
+              if (successor != null) {
+                  return successor.handle(r);
+              }
+              return r;
+          }
+  
+          abstract protected T handleWork(T input);
+      }
+      ```
+    * 패턴 활용
+      * 두 작업 처리 객체는 텍스트를 처리하는 예제
+        ```
+        public class HeaderTextProcessing extends ProcessingObject<String> {
+    
+            @Override
+            protected String handleWork(String text) {
+                return "From Raoul, Mario and Alan: " + text;
+            }
+        }
+    
+        public class SpellCheckerProcessing extends ProcessingObject<String> {
+    
+            @Override
+            protected String handleWork(String text) {
+                return text.replaceAll("labda", "lambda");
+            }
+        }
+        ```
+  * 람다 표현식 활용
+    * 작업 처리 객체를 Function<String, String>, 더 정확히 UnaryOperator<String> 형식의 인스턴스로 표현 가능
+    * andThen 메서드로 이들 함수를 조합해서 체인을 만들 수 있음
+      ```
+      // 첫 번째 작업 처리 객체
+      UnaryOperator<String> headerProcessing =
+              (String text) -> "From Raoul, Mario and Alan: " + text;
+      // 두 번째 작업 처리 객체
+      UnaryOperator<String> spellCheckerProcessing =
+              (String text) -> text.replaceAll("labda", "lambda");
+      // 동작 체인으로 두 함수를 조합
+      Function<String, String> pipeLine =
+              headerProcessing.andThen(spellCheckerProcessing);
+
+      String result = pipeLine.apply("Aren't labdas really sexy?!");
+      ```
+
+* 팩토리
+  * 인스턴스화 로직을 클라이언트에 노출하지 않고 객체를 만들 때 사용
+  * 예를 들어 은행에서 일하는 경우 은행에서 취급하는 대출, 채권, 주식 등 다양한 상품을 만들어야 한다고 가정
+    * 다양한 상품을 만드는 Factory 클래스 필요
+      ```
+      public class ProductFactory {
+          public static Product createProduct(String name) {
+              switch (name) {
+                  case "loan" : return new Loan();
+                  case "stock" : return new Stock();
+                  case "bond" : return new Bond();
+                  default: throw new RuntimeException("No such product " + name);
+              }
+          }
+      }
+      ```
+      * 여기서 Loan, Stock, Bond는 모두 Product의 서브 형식
+      * createProduct 메서드는 생산된 상품을 설정하는 로직을 포함할 수 있음
+      * 이는 부가적인 기능일 뿐 위 코드의 진짜 장점은 생성자와 설정을 외부로 노출하지 않음으로써 클라이언트가 단순하게 상품을 생산할 수 있다는 것
+        ``` Product p1 = ProductFactory.createProduct("loan"); ```
+  * 람다 표현식 사용
+    * Loan 생성자를 사용하는 코드
+      ```
+      Supplier<Product> loanSupplier = Loan::new;
+      Product loan = loanSupplier.get();
+      ```
+    * 이제 다음 코드처럼 상품명을 생성자로 연결하는 Map을 만들어서 코드를 재구현할 수 있음
+      ```
+      final static private Map<String, Supplier<Product>> map = new HashMap<>();
+  
+      static {
+          map.put("loan", Loan::new);
+          map.put("stock", Stock::new);
+          map.put("bond", Bond::new);
+      }
+      ```
+      * 맵을 이용하여 다양한 상품을 인스턴스화
+        ```
+        public static Product createProductLambda(String name) {
+            Supplier<Product> p = map.get(name);
+            if (p != null) {
+                return p.get();
+            }
+            throw new RuntimeException("No such product " + name);
+        }
+        ```
+    * 팩토리 메서드 createProduct가 상품 생성자로 여러 인수를 전달하는 상황에서는 이 기법을 적용하기 어려움
+      * 단순히 Supplier 함수형 인터페이스로는 이 문제를 해결할 수 없음
+      * 예를 들어 세 인수를 받는 상품의 생성자가 있다고 가정
+        * 세 인수를 지원하려면 TriFunction이라는 특별한 함수형 인터페이스를 만들어야 함
+        * 결국 다음 코드처럼 Map의 시그니처가 복잡해짐
+          ```
+          private interface TriFunction<T, U, V, R> {
+              R apply(T t, U u, V v);
+          }
+          
+          Map<String, TriFunction<Integer, Integer, String, Product>> map = new HashMap<>();
+          ```
+
+### 람다 테스팅
+* 개발자의 최종 목표는 제대로 동작하는 코드를 구현하는 것, 깔끔한 코드를 구현하는 것이 아님
+* 일반적으로 좋은 소프트웨어 공학자라면 프로그램이 의도대로 동작하는지 확인할 수 있는 단위 테스팅을 진행함
+* 예를 들어 다음처럼 그래픽 앱의 일부인 Point 클래스가 있다고 가정
+  ```
+  public class Point {
+  	private final int x;
+  	private final int y;
+  
+  	public Point(int x, int y) {
+  		this.x = x;
+  		this.y = y;
+  	}
+  
+  	public int getX() {
+  		return x;
+  	}
+  
+  	public int getY() {
+  		return y;
+  	}
+  
+  	public Point moveRightBy(int x) {
+  		return new Point(this.x, this.y);
+  	}
+  }
+  ```
+* moveRightBy 메서드가 의도한 대로 동작하는지 확인하는 단위 테스트
+  ```
+  @Test
+  public void testMoveRightBy() throws Exception {
+      Point p1 = new Point(5, 5);
+      Point p2 = p1.moveRightBy(10);
+      assertEquals(15, p2.getX());
+      assertEquals(5, p2.getY());
+  }
+  ```
+
+* 보이는 람다 표현식의 동작 테스팅
+  * moveRightBy는 public이므로 문제없이 작동함
+  * 하지만 람다는 익명이므로 테스트 코드 이름을 호출할 수 없음
+  * 따라서 필요하다면 람다를 필드에 저장해서 재사용할 수 있으며 람다의 로직을 테스트 할 수 있음
+  * 메서드를 호출하는 것처럼 람다를 사용할 수 있음
+    * 예를 들어 Point 클래스에 compareByXAndThenY라는 정적 필드를 추가했다고 가정
+      * compareByXAndThenY를 이용하면 메서드 참조로 생성한 Comparator 객체에 접근할 수 있음
+      ```
+      public class Point {
+          public final static Comparator<Point> compareByXAndThenY = comparing(Point::getX).thenComparing(Point::getY);
+      }
+      ```
+  * 람다 표현식은 함수형 인터페이스의 인스턴스를 생성함
+    * 따라서 생성된 인스턴스의 동작으로 람다 표현식을 테스트할 수 있음
+
+* 람다를 사용하는 메서드의 동작에 집중하라
+  * 람다의 목표는 정해진 동작을 다른 메서드에서 사용할 수 있도록 하나의 조각으로 캡슐화하는 것
+  * 그러러면 세부 구현을 포함하는 람다 표현식을 공개하지 말아야 함
+  * 람다 표현식을 사용하는 메서드의 동작을 테스트함으로써 람다를 공개하지 않으면서도 람다 표현식을 검증할 수 있음
+  * moveAllPointsRightBy 메서드
+    ```
+    public static List<Point> moveAllPointsRightBy(List<Point> points, int x) {
+        return points.stream().map(p -> new Point(p.getX(), p.getY())).collect(toList());
+    }
+    ```
+    * ``` p -> new Point(p.getX(), p.getY()) ```를 테스트 하는 부분이 없음
+    * moveAllPointsRightBy 메서드 동작 확인
+      ```
+      @Test
+      public void testMoveAllPointsRightBy() throws Exception {
+          List<Point> points = Arrays.asList(new Point(5, 5), new Point(10, 5));
+          List<Point> expectedPoints = Arrays.asList(new Point(15, 5), new Point(20, 5));
+          List<Point> newPoints = Point.moveAllPointsRightBy(points, 10);
+          assertEquals(expectedPoints, newPoints);
+      }
+      ```
+      * 위 단위 테스트에서 보여주는 것처럼 Point 클래스의 equals 메서드는 중요한 메서드
+        * 따라서 Object의 기본적인 equals 구현을 그대로 사용하지 않으려면 equals 메서드를 적절하게 구현해야 함
+
+* 복잡한 람다를 개별 메서드로 분할하기
+  * 테스트 코드에서 람다 표현식을 참조할 수 없는데, 람다 표현식을 메서드 참조로 바꾸는 것이 좋음
+  * 그러면 일반 메서드를 테스트하듯이 람다 표현식을 테스트할 수 있음
+
+* 고차원 함수 테스팅
+  * 함수를 인수로 받거나 다른 함수를 반환하는 메서드는 좀 더 사용하기 어려움
+    * 이를 고차원 함수(higher-order functions)라고 함
+  * 메서드가 람다를 인수로 받는다면 다른 람다로 메서드의 동작을 테스트할 수 있음
+  * 예를 들어 다양한 프레디케이트로 2장에서 만든 filter 메서드를 테스트
+    ```
+    @Test
+    public void testFilter() throws Exception {
+        List<Integer> numbers = Arrays.asList(1, 2, 3, 4);
+        List<Integer> even = filter(numbers, i -> i % 2 == 0);
+        List<Integer> smallerThanThree = filter(numbers, i -> i < 3);
+        assertEquals(Arrays.asList(2, 4), even);
+        assertEquals(Arrays.asList(1, 2), smallerThanThree);
+    }
+    ```
+  * 테스트해야 할 메서드가 다른 함수를 반환한다면 Comparator에서 살펴봤던 것처럼 함수형 인터페이스의 인스턴스로 간주하고 함수의 동작을 테스트할 수 있음
+  * 코드를 테스트하면서 람다 표현식에 어떤 문제가 있음을 발견하게 될 것
+  * 따라서 디버깅이 필요함
+
+### 디버깅
+* 문제가 발생한 코드를 디버깅할 때 개발자는 다음 두 가지를 가장 먼저 확인해야 함
+  * 스택 트레이스
+  * 로깅
+* 하지만 람다 표현식과 스트림은 기존의 디버깅 기법을 무력화
+
+* 스택 트레이스 확인
+  * 예외 발생으로 프로그램 실행이 갑자기 중단되었다면 먼저 어디에서 멈췄고 어떻게 멈추게 되었는지 살펴봐야 함
+    * 스택 프레임(stack frame)에서 이 정보를 얻을 수 있음
+    * 프로그램이 메서드를 호출할 때마다 프로그램에서의 호출 위치, 호출할 때의 인수값, 호출된 메서드의 지역 변수 등을 포함한 호출 정보가 생성
+    * 이 정보들은 스택 프레임에 저장됨
+    * 따라서 프로그램이 멈췄다면 프로그램이 어떻게 멈추게 되었는지 프레임별로 보여주는 스택 트레이스(stack trace)를 얻을 수 있음
+    * 문제가 발생한 지점에 이르게 된 메서드 호출 리스트를 얻을 수 있음
+    * 메서드 호출 리스트를 통해 문제가 어떻게 발생했는지 이해할 수 있음
+
+* 람다와 스택 트레이스
+  * 람다 표현식은 이름이 없기 때문에 조금 복잡한 스택 트레이스가 생성됨
+  * 고의적으로 문제를 일으키도록 구현한 코드
+    ```
+    public class Debugging {
+    
+    	public static void main(String[] args) {
+    		List<Point> points = Arrays.asList(new Point(12, 2), null);
+    		points.stream().map(p -> p.getX()).forEach(System.out::println);
+    	}
+    }
+    ```
+    * 출력된 스택 트레이스
+      ```
+      Exception in thread "main" java.lang.NullPointerException
+          at com.jaenyeong.chapter_09.DebuggingExample.Debugging.lambda$main$0(Debugging.java:12)
+          at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:195)
+          at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:948)
+          at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:484)
+          at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:474)
+          at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:150)
+          at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:173)
+          at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+          at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:497)
+          at com.jaenyeong.chapter_09.DebuggingExample.Debugging.main(Debugging.java:12)
+      ```
+      * at com.jaenyeong.chapter_09.DebuggingExample.Debugging.lambda$main$0(Debugging.java:12)
+        * $0의 의미?
+      * 람다 표현식은 이름이 없으므로 컴파일러가 람다를 참조하는 이름을 만들어낸 것 (lambda$main$0)
+    * 메서드 참조를 사용해도 스택 트레이스에는 메서드명이 나타나지 않음
+      ```
+      points.stream().map(Point::getX).forEach(System.out::println);
+      ```
+    * 메서드 참조를 사용하는 클래스와 같은 곳에 선언되어 있는 메서드를 참조할 때는 메서드 참조 이름이 스택 트레이스에 나타남
+      ```
+      public static void main(String[] args) {
+          // 메서드 참조를 사용하는 클래스와 같은 곳에 선언되어 있는 메서드를 참조할 때는 메서드 참조 이름이 스택 트레이스에 나타남
+          List<Integer> numbers = Arrays.asList(1, 2, 3);
+          numbers.stream().map(Debugging::divideByZero).forEach(System.out::println);
+      }
+      
+      public static int divideByZero(int n) {
+          return n / 0;
+      }
+      ```
+      * divideByZero 메서드는 스택 트레이스에 제대로 표시됨
+        ```
+        Exception in thread "main" java.lang.ArithmeticException: / by zero
+        	at com.jaenyeong.chapter_09.DebuggingExample.Debugging.divideByZero(Debugging.java:21)
+        	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:195)
+        	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:948)
+        	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:484)
+        	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:474)
+        	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:150)
+        	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:173)
+        	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+        	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:497)
+        	at com.jaenyeong.chapter_09.DebuggingExample.Debugging.main(Debugging.java:17)
+        ```
+        * at com.jaenyeong.chapter_09.DebuggingExample.Debugging.divideByZero(Debugging.java:21)
+          * 스택 트레이스에 divideByZero 표시됨
+  * 람다 표현식과 관련한 스택 트레이스는 이해하기 어려움
+    * 미래 자바 컴파일러가 개선해야 할 부분
+
+* 정보 로깅
+  * 스트림의 파이프라인 연산을 디버깅한다고 가정
+    * 다음처럼 forEach로 스트림 결과를 출력하거나 로깅할 수 있음
+      ```
+      List<Integer> numbers = Arrays.asList(2, 3, 4, 5);
+      
+      numbers.stream()
+            .map(x -> x + 17)
+            .filter(x -> x % 2 == 0)
+            .limit(3)
+            .forEach(System.out::println);
+      ```
+      * 출력
+        ```
+        20
+        22
+        ```
+      * forEach를 호출하는 순간 전체 스트림이 소비됨
+      * 스트림 파이프라인에 적용된 각각의 연산(map, filter, limit)이 어떤 결과를 도출하는지 확인할 수 있다면 좋을 듯
+  * peek 스트림 연산
+    * 스트림의 각 요소를 소비한 것처럼 동작을 실행함
+    * 하지만 forEach처럼 실제로 스트림의 요소를 소비하지는 않음
+    * peek은 자신이 확인한 요소를 파이프라인의 다음 연산으로 그대로 전달함
+    * 다음 코드에서는 peek으로 스트림 파이프라인의 각 동작 전후의 중간값을 출력함
+      ```
+      List<Integer> result = numbers.stream()
+              .peek(x -> System.out.println("from stream: " + x))
+              .map(x -> x + 17)
+              .peek(x -> System.out.println("after map: " + x))
+              .filter(x -> x % 2 == 0)
+              .peek(x -> System.out.println("after filter: " + x))
+              .limit(3)
+              .peek(x -> System.out.println("after limit: " + x))
+              .collect(toList());
+      ```
+      * 결과
+        ```
+        from stream: 2
+        after map: 19
+        from stream: 3
+        after map: 20
+        after filter: 20
+        after limit: 20
+        from stream: 4
+        after map: 21
+        from stream: 5
+        after map: 22
+        after filter: 22
+        after limit: 22
+        ```
+
+### 정리
+* 람다 표현식으로 가독성이 좋고 더 유연한 코드를 만들 수 있음
+* 익명 클래스는 람다 표현식으로 바꾸는 것이 좋음
+  * 하지만 이 때 this, 변수 섀도우(shadow variable) 등 미묘하게 의마상 다른 내용이 있음을 주의
+* 메서드 참조로 람다 표현식보다 더 가독성이 좋은 코드를 구현할 수 있음
+* 반복적으로 컬렉션을 처리하는 루틴은 스트림 API로 대체할 수 있을지 고려하는 것이 좋음
+* 람다 표현식으로 전략, 템플릿 메서드, 옵저버, 의무 체인, 팩토리 등의 객체지향 디자인 패턴에서 발생하는 불필요한 코드를 제거할 수 있음
+* 람다 표현식도 단위 테스트를 할 수 있음
+  * 하지만 람다 표현식 자체를 테스트하는 것보다 람다 표현식이 사용되는 메서드의 동작을 테스트하는 것이 바람직함
+* 복잡한 람다 표현식은 일반 메서드로 재구현할 수 있음
+* 람다 표현식을 사용하면 스택 트레이스를 이해하기 어려워짐
+* 스트림 파이프라인에서 요소를 처리할 때 peek 메서드로 중간값을 확인할 수 있음
+
+### [quiz]
 ---
