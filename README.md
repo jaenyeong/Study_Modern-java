@@ -5081,3 +5081,558 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   
 ### [quiz]
 ---
+
+## chapter 11 - null 대신 Optional 클래스
+* 1965년 토니 호어(Tony Hoare)라는 영국 컴퓨터 과학자가 힙에 할당되는 레코드를 사용하며  
+  형식을 갖는 최초의 프로그래밍 언어 중 하나인 알골을 설계하면서 처음 null 참조가 등장
+
+### 값이 없는 상황을 어떻게 처리할까?
+* Person, Car, Insurance 데이터 모델
+  ```
+  public class Person {
+      private Car car;
+  
+      public Car getCar() {
+          return car;
+      }
+  }
+  public class Car {
+      private Insurance insurance;
+  
+      public Insurance getInsurance() {
+          return insurance;
+      }
+  }
+  public class Insurance {
+      private String name;
+  
+      public String getName() {
+          return name;
+      }
+  }
+  ```
+* 문제?
+  ```
+  public String getCarInsuranceName(Person person) {
+      return person.getCar().getInsurance().getName();
+  }
+  ```
+
+* 보수적인 자세로 NullPointerException 줄이기
+  * null 확인 코드를 추가하여 NullPointerException 줄이는 코드
+  * null 안전 시도 : 깊은 의심
+    ```
+	// null 확인 코드 때문에 나머지 호출 체인의 들여쓰기 수준이 증가함
+	public static String getCarInsuranceNameNullSafe(Person person) {
+		if (person != null) {
+			Car car = person.getCar();
+			if (car != null) {
+				Insurance insurance = car.getInsurance();
+				if (insurance != null) {
+					return insurance.getName();
+				}
+			}
+		}
+		return "Unknown";
+	}
+    ```
+    * 위 코드에서는 변수를 참조할때마다 null 확인, 중간 과정에 하나라도 null 참조가 있으면 'Unknown' 문자열 반환
+    * 상식적으로 모든 회사에는 이름이 있으므로 보허회사의 이름이 null인지 확인하지 않음
+    * 확실히 알고 있는 영역을 모델링할 때는 이런 지식을 활용, null 확인을 생략할 수 있음
+      * 하지만 데이터를 자바 클래스로 모델링할 때는 이같은 사실을 단정하기 어려움
+    * 모든 변수가 null인지 의심하므로 변수를 접근할 때마다 중첩된 if 추가
+      * 이와 같은 반복 패턴(recurring pattern) 코드를 '깊은 의심'이라고 부름
+      * 변수가 null인지 의심되어 중첩 if 블록을 추가하면 코드 들여쓰기 수준이 증가함
+      * 코드 구조 엉망, 가독성 떨어짐
+  * null 안전 시도 : 너무 많은 출구
+    ```
+	// null 확인 코드마다 출구가 생김
+	public String getCarInsuranceNameNullSafeV2(Person person) {
+		if (person == null) {
+			return "Unknown";
+		}
+
+		Car car = person.getCar();
+		if (car == null) {
+			return "Unknown";
+		}
+
+		Insurance insurance = car.getInsurance();
+		if (insurance == null) {
+			return "Unknown";
+		}
+
+		return insurance.getName();
+	}
+    ```
+    * 여러 개의 출구로 인해 유지보수가 어려워지기 때문에 좋은 코드가 아님
+    * 게다가 null일 때 반환되는 기본값 'Unknown'이 반복, 같은 문자열을 반복하면서 오타 등의 실수 발생(상수를 만들어 사용함으로 해결은 가능)
+
+* null 때문에 발생하는 문제
+  * 이론적, 실용적 문제 확인
+    * 에러의 근원
+      * NullPointerException은 자바에서 가장 흔히 발생하는 에러
+    * 코드를 어지럽힘
+      * 때로는 중첩된 null 확인 코드를 추가해야 하므로 코드 가독성이 떨어짐
+    * 아무 의미가 없음
+      * null은 아무 의미도 표현하지 않음
+      * 특히 정적 형식 언어에서 값이 없음을 표현하는 방법으로는 적절하지 않음
+    * 자바 철학에 위배됨
+      * 자바는 개발자로부터 포인터를 숨겼음
+      * 하지만 null 포인터는 예외
+    * 형식 시스템에 구멍을 만듦
+      * null은 무형식이며 정보를 포함하고 있지 않으므로 모든 참조 형식에 null을 할당할 수 있음
+      * 이런식으로 null이 할당되기 시작하면서 시스템의 다른 부분으로 null이 퍼졌을 때 애초에 null이 어떤 의미로 사용되었는지 알 수 없음
+
+* 다른 언어는 null 대신 무얼 사용하나?
+  * 그루비는 안전 내비게이션 연산자 (safe navigation operator) (?.)를 도입하여 null 문제 해결
+    * 사람들이 그들의 자동차에 적용한 보험 회사의 이름을 가져오는 그루비 예제
+      ``` def carInsuranceName = person?.car?.insurance?.name ```
+    * 이 때 호출 체인에 null인 참조가 있으면 결과로 null 반환됨
+  * 자바 7에서도 비슷한 제안이 있었으나 채택되지 않음
+    * 모든 자바 개발자가 안전 내비게이션 연산자를 간절히 원하지 않음
+    * NullPointerException 발생시 null을 확인하는 if문을 추가해서 문제를 쉽게 해결 가능
+    * null 예외를 해결할 수 있지만 이는 문제의 본질을 해결하는 것이 아니라 문제를 뒤로 미루고 숨기는 것이나 마찬가지
+  * 하스켈, 스칼라 등의 함수형 언어는 아예 다른 관점에서 null 문제 접근
+    * 하스켈은 선택형값(optional value)을 저장할 수 있는 Maybe라는 형식 제공
+      * Maybe는 주어진 형식의 값을 갖거나 아무 값도 갖지 않을 수 있음
+      * 따라서 null 참조 개념은 자연스럽게 사라짐
+    * 스칼라도 T 형식의 값을 갖거나 아무 값을 가지지 않을 수 있는 Option[T]라는 구조를 제공
+      * 그리고 Option 형식에서 제공하는 연산을 사용해서 값이 있는지 여부를 명시적으로 확인해야 함(null 확인)
+      * 형식 시스템에서 이를 강제하므로 null과 관련한 문제가 일어날 가능성이 줄어듬
+  * 자바 8은 선택형값 개념의 영향을 받아서 java.util.Optional<T>라는 새로운 클래스 제공
+
+### Optional 클래스 소개
+* 자바 8은 하스켈, 스칼라의 영향을 받아 Optional<T>라는 새로운 클래스 제공
+* Optional 클래스는 선택형값을 캡슐화하는 클래스
+* 값이 있으면 Optional 클래스는 값을 감싸고 없으면 Optional.empty 메서드로 Optional을 반환
+* Optional.empty는 Optional의 특별한 싱글턴 인스턴스를 반환하는 정적 팩토리 메서드
+* null 참조와 Optional.empty()는 의마상으론 비슷하지만 차이점이 많음
+* Optional<Car>
+  * 이는 값이 없을 수 있음을 명시적으로 보여줌
+  * Car는 null 참조가 할당될 수 있는데 이것이 올바른 값인지 잘못된 값인지 판단할 아무 정보가 없음
+  * 예제
+    ```
+    public class Person {
+    	// 사람이 차를 소유했을 수도 아닐 수도 있으므로 Optional 정의
+    	private Optional<Car> car;
+    
+    	public Optional<Car> getCar() {
+    		return car;
+    	}
+    }
+    public class Car {
+    	// 자동차가 보험에 가입되어 있을 수도 아닐 수도 있으므로 Optional 정의
+    	private Optional<Insurance> insurance;
+    
+    	public Optional<Insurance> getInsurance() {
+    		return insurance;
+    	}
+    }
+    public class Insurance {
+    	// 보험 회사에는 반드시 이름이 있음
+    	private String name;
+    
+    	public String getName() {
+    		return name;
+    	}
+    }
+    ```
+    * Optional 클래스를 사용하면서 모델의 의미(semantic)가 더 명확해졌음을 확인할 수 있음
+      * Person은 Optional<Car>를 참조, Car는 Optional<Insurance>를 참조하는데
+      * 이는 사람이 차를 소유했을 수도 아닐 수도 있으며
+      * 자동차가 보험에 가입되어 있을 수도 아닐 수도 있음을 명확히 설명함
+      * 또한 보험 회사 이름은 Optional<String>이 아닌 String 형식으로 선언됨
+        * 보험 회사는 반드시 이름을 가져야 함을 보여줌
+        * 따라서 보험 회사 이름을 참조할 때 NullPointerException이 발생할 수도 있다는 정보를 확인할 수 있음
+        * 하지만 null 확인 코드를 추가할 필요는 없음
+          * 고쳐야 할 문제를 감추는 꼴이 되기 때문
+        * 보험 회사는 반드시 이름을 가져야 하며 이름이 없는 보험 회사를 발견했다면 이름이 없는 이유를 밝혀 문제를 해결해야 함
+  * Optional을 이용하면 값이 없는 상황이 데이터에 문제가 있는 것인지, 알고리즘의 버그인지 명확하게 구분 가능
+    * 모든 null 참조를 Optional로 대치하는 것은 바람직하지 않음
+    * Optional의 역할은 더 이해하기 쉬운 API를 설계하도록 돕는 것
+    * 즉, 메서드의 시그니처만 보고도 선택형값인지 여부를 구별할 수 있음
+    * Optional이 등장하면 이를 언랩해서 값이 없을 수 있는 상황에 적절하게 대응하도록 강제하는 효과가 있음
+
+### Optional 적용 패턴
+* Optional 객체 만들기
+  * 빈 Optional
+    * 정적 팩토리 메서드 Optional.empty로 빈 Optional 객체를 얻을 수 있음
+      ``` Optional<Car> optCar = Optional.empty(); ```
+  * null이 아닌 값으로 Optional 만들기
+    * 정적 팩토리 메서드 Optional.of로 null이 아닌 값을 포함하는 Optional을 만들 수 있음
+      ``` Optional<Car> optCar = Optional.of(car); ```
+      * 이제 car가 null이라면 즉시 NullPointerException이 발생함
+      * Optional을 사용하지 않았다면 car의 프로퍼티에 접근하려 할 때 에러가 발생했을 것
+  * null값으로 Optional 만들기
+    * 정적 팩토리 메서드 Optional.ofNullable로 null값을 저장할 수 있는 Optional을 만들 수 있음
+      ``` Optional<Car> optCar = Optional.ofNullable(car); ```
+      * car가 null이면 빈 Optional 객체가 반환됨
+  * Optional이 비어 있으면 get을 호출했을 때 예외가 발생함
+  * Optional을 잘못 사용하면 null을 사용했을 때와 같은 문제를 겪을 수 있음
+  * Optional에서 제공하는 기능이 스트림 연산에서 영감을 받았음
+
+* 맵으로 Optional의 값을 추출하고 변환하기
+  * 예를 들어 보험 회사의 이름을 추출한다고 가정
+    ```
+    String name = null;
+    if (insurance != null) {
+        name = insurance.getName();
+    }
+    ```
+    * 이런 유형의 패턴에 사용할 수 있또록 Optional은 map 메서드를 지원함
+      ```
+      Optional<Insurance> optInsurance = Optional.ofNullalbe(insurance);
+      Optional<String> name = optInsurance.map(Insurance::getName);
+      ```
+    * Optional의 map 메서드는 스트림의 map 메서드와 개념적으로 비슷함
+      * 스트림의 map은 스트림의 각 요소에 제공된 함수를 적용하는 연산
+      * 여기서 Optional 객체를 최대 요소의 개수가 한 개 이하인 데이터 컬렉션으로 생각할 수 있음
+      * Optional이 값을 포함하면 map의 인수로 제공된 함수가 값을 바꿈
+      * Optional이 비어 있으면 아무 일도 일어나지 않음
+
+* flatMap으로 Optional 객체 연결
+  * map을 이용해 코드 재구현
+    ```
+    Optional<Person> optPerson = Optional.of(person);
+    Optional<String> name =
+            optPerson.map(Person::getCar)
+                    .map(Car::getInsurance)
+                    .map(Insurance::getName);
+    return name.orElse("Unknown");
+    ```
+    * 위 코드는 컴파일 되지 않음
+      * optPerson의 형식은 Optional<Person>이므로 map 메서드를 호출할 수 있음
+      * 하지만 getCar는 Optional<Car> 형식의 객체를 반환
+      * 즉, map 연산의 결과는 Optional<Optional<Car>> 형식의 객체
+      * getInsurance는 또 다른 Optional 객체를 반환하므로 getInsurance 메서드를 지원하지 않음
+    * flatMap 메서드로 해결
+      * 스트림의 flatMap은 함수를 인수로 받아서 다른 스트림을 반환하는 메서드
+      * 보통 인수로 받은 함수를 스트림의 각 요소에 적용하면 스트림의 스트림이 만들어짐
+      * 하지만 flatMap은 인수로 받은 함수를 적용해서 생성된 각각의 스트림에서 콘텐츠만 남김
+      * 즉, 함수를 적용해서 생성한 모든 스트림의 하나의 스트림으로 병합되어 평준화됨
+
+* Optional로 자동차의 보험 회사 이름 찾기
+  * flatMap
+    ```
+	public String getCarInsuranceName(Optional<Person> person) {
+		return person.flatMap(Person::getCar)
+				.flatMap(Car::getInsurance)
+				.map(Insurance::getName)
+				.orElse("Unknown");
+	}
+    ```
+    * null을 확인하느라 조건 분기문을 추가해서 코드를 복잡하게 만들지 않으면서도 쉽게 이해할 수 있는 코드
+    * Optional을 사용하므로 도메인 모델과 관련한 암묵적인 지식에 의존하지 않고도 명시적으로 형식 시스템을 정의할 수 있음
+    * 정확한 정보 전달은 언어의 가장 큰 목표중 하나
+    * Optional을 인수로 받거나, 반환하는 메서드를 정의한다면
+    * 결과적으로 이 메서드를 사용하는 모든 이에게 이 메서드가 빈 값을 받거나 빈 결과를 반환할 수 있음을 잘 문서화 해서 제공하는 것과 같음
+
+* Optional을 이용한 Person/Car/Insurance 참조 체인
+  * Person을 Optional로 감싼 다음, flatMap(Person::getCar)를 호출
+    * 이 호출을 두 단계의 논리적 과정으로 생각할 수 있음
+      * 첫 번째 단계에서는 Optional 내부의 Person에 Function을 적용함
+        * 여기서는 Person의 getCar 메서드가 Function
+        * getCar 메서드는 Optional<Car>를 반환, Optional 내부의 Person이 Optional<Car>로 변환되면서 중첩 Optional이 생성됨
+        * 따라서 flatMap 연산으로 Optional을 평준화함
+        * 평준화 과정이란 이론적으로 두 Optional을 합치는 기능을 수행하면서 둘 중 하나라도 null이면 빈 Optional을 생성하는 연산
+        * fflatMap을 빈 Optional에 호출하면 아무일도 일어나지 않고 그대로 반환됨
+        * 반면 Optional이 Person을 감싸고 있다면 flatMap에 전달된 Function이 Person에 적용됨
+        * Function을 적용한 결과가 이미 Optional이므로 flatMap 메서드는 결과를 그대로 반환할 수 있음
+      * 두 번째 단계도 Optional<Car>를 Optional<Insurance>로 변환함
+      * 세 번째 단계에서는 Optional<Insurance>를 Optional<String>으로 변환함
+      * Insurance.getName()은 String을 반환하므로 flatMap을 사용할 필요가 없음
+  * 호출 체인 중 어떤 메서드가 빈 Optional을 반환한다면 전체 결과로 빈 Optional을 반환
+    * 아니면 관련 보험 회사의 이름을 포함하는 Optional을 반환
+
+* 도메인 모델에 Optional을 사용했을 때 데이터를 직렬화할 수 없는 이유
+  * 예제에서 Optional로 우리 도메인 모델에서 값이 꼭 있어야 하는지 아니면 값이 없을 수 있는 지 여부를 구체적으로 표현할 수 있었음
+    * Optional 클래스 설계자는 이와는 다른 용도로만 Optional 클래스를 사용할 것을 가정함
+  * 자바 언어 아키텍트인 브라이언 고츠(Brian Goetz)는 Optional 용도가 선택형 반환값을 지원하는 것이라고 명확하게 정의함
+  * Optional 클래스는 필드 형식으로 사용할 것을 가정하지 않았으므로 Serializable 인터페이스를 구현하지 않음
+    * 따라서 우리 도메인 모델에 Optional을 사용한다면 직렬화 모델을 사용하는 도구나 프레임워크에 문제가 생길 수 있음
+  * 이와 같은 단점에도 불구하고 여전히 Optional을 사용해서 도메인 모델을 구성하는 것이 바람직하다고 생각함
+    * 특히 객체 그래프에서 일부 또는 전체 객체가 null일 수 있는 상황이라면 더욱 바람직
+  * 직렬화 모델이 필요하다면 Optional로 값을 반환 받을 수 있는 메서드를 추가하는 방식을 권장함
+    ```
+    public class Person {
+        private Car car;
+        public Optional<Car> getCarAsOptional() {
+            return Optional.ofNullable(car);
+        }
+    }
+    ```
+
+* Optional 스트림 조작
+  * List<Person>을 인수로 받아 자동차를 소유한 사람들이 가입한 보험 회사의 이름을 포함하는 Set<String>을 반환하는 메서드 구현
+    ```
+    public Set<String> getCarInsuranceNames(List<Person> persons) {
+        return persons.stream()
+                .map(Person::getCar)
+                .map(optCar -> optCar.flatMap(Car::getInsurance))
+                .map(optInsurance -> optInsurance.map(Insurance::getName))
+                .flatMap(Optional::stream)
+                .collect(toSet());
+    }
+    ```
+    * 보통 스트림 요소를 조작하려면 반환, 필터 등의 일련의 여러 긴 체인이 필요한데 이 예제는 Optional로 값이 감싸 있으므로 이 과정이 더 복잡해짐
+    * 예제에서 getCar() 메서드가 단순히 Car가 아니라 Optional<Car>를 반환
+      * 사람이 자동차를 가지지 않을 수도 있는 상황임을 자각
+      * 따라서 첫 번째 map 변환을 수행하고 Stream<Optional<Car>>를 얻음
+      * 이어지는 두 개의 map 연산을 이용해 Optional<Car>를 Optional<Insurance>로 변환
+        * 그 다음 스트림이 아니라 각각의 요소에 했던 것처럼 각각을 Optional<String>로 변환
+      * 세 번의 변환 과정을 거쳐 Stream<Optional<String>>을 얻음
+        * 사람이 차를 갖고 있지 않거나 또는 차가 보험에 가입되어 있지 않아 결과가 비어있을 수 있음
+        * Optional 덕분에 이런 종류의 연산을 null 걱정없이 안전하게 처리할 수 있음
+        * 하지만 마지막 결과를 얻으려면 빈 Optional을 제거하고 값을 언랩해야 하는 것이 문제
+        * filter, map을 순서적으로 이용해 결과를 얻음
+          ```
+          Stream<Optional<String>> stream = ...
+          Set<String> result = stream
+                          .filter(Optional::isPresent)
+                          .map(Optional::get)
+                          .collect(toSet());
+          ```
+          * Optional 클래스의 stream() 메서드를 이용하면 한 번의 연산으로 같은 결과를 얻을 수 있음
+          * 이 메서드는 각 Optional이 비었는지 아닌지에 따라 Optional을 0개 이상의 항목을 포함하는 스트림으로 변환함
+          * 따라서 이 메서드의 참조를 스트림의 한 요소에서 다른 스트림으로 적용하는 함수로 볼 수 있으며  
+            이를 원래 스트림에 호출하는 flatMap 메서드로 전달할 수 있음
+          * 이런 방법으로 스트림의 요소를 두 수준인 스트림의 스트림으로 변환하고 다시 한 수준인 평면 스트림으로 바꿀 수 있음
+          * 이 기법을 이용하면 한 단계의 연산으로 값을 포함하는 Optional을 언랩하고 비어있는 Optional은 건너뛸 수 있음
+
+* 디폴트 액션과 Optional 언랩
+  * get()
+    * 값을 읽는 가장 간단한 메서드면서 동시에 가장 안전하지 않은 메서드
+    * 매핑된 값이 있으면 해당 값을 반환, 없으면 NoSuchElementException을 발생
+    * 따라서 Optional에 값이 반드시 있다고 가정할 수 있는 상황이 아니면 사용하지 않는 것이 바람직함
+    * 결국 이 상황은 중첩된 null 확인 코드를 넣는 상황가 다르지 않음
+  * orElse(T other)
+    * Optional이 값을 포함하지 않을 때 기본값을 제공할 수 있음
+  * orElseGet(Supplier<? extends T> other)
+    * orElse 메서드의 게으른 버전
+    * Optional에 값이 없을 때만 Supplier가 실행되기 때문
+    * 디폴트 메서드를 만드는 데 시간이 걸리거나(효율성 때문) Optional이 비어 있을 때만 기본값을 생성하고 싶다면(기본값이 꼭 필요한 상황) 사용
+  * orElseThrow(Supplier<? extends X> exceptionSupplier)
+    * Optional이 비어있을 때 예외를 발생시킨다는 점에서 get 메서드와 비슷
+    * 하지만 이 메서드는 발생시킬 예외의 종류를 선택할 수 있음
+  * ifPresent(Consumer<? super T> consumer)
+    * 값이 존재할 때 인수로 넘겨준 동작을 실행할 수 있음
+    * 값이 없으면 아무일도 일어나지 않음
+  * ifPresentOrElse(Consumer<? super T> action, Runnable emptyAction) - java 9 추가
+    * Optional이 비었을 때 실행할 수 있는 Runnable을 인수로 받는다는 점만 ifPresent()와 다름
+
+* 두 Optional 합치기
+  * 가장 저렴한 보험료를 제공하는 보험 회사를 찾는 몇몇 복잡하는 비즈니스 로직을 구현한 외부 서비스가 있다고 가정
+    ```
+    public Insurance findCheapestInsurance(Person person, Car car) {
+        // 다른 보험사에서 제공한 질의 서비스
+        // 모든 데이터 비교
+        return cheapestCompany;
+    }
+    ```
+    * 이제 두 Optional을 인수로 받아 Optional<Insurance>를 반환하는 null 안전 버전(null safe version)의 메서드를 구현 해야 한다고 가정
+      * 인수로 전달한 값 중 하나라도 비어 있으면 빈 Optional<Insurance>를 반환
+      * Optional 클래스는 Optional이 값을 포함하는지 여부를 알려주는 isPresent라는 메서드도 제공함
+        * isPresent 이용하여 구현
+          ```
+          public Optional<Insurance> nullSafeFindCheapestInsurance(Optional<Person> person, Optional<Car> car) {
+              if (person.isPresent() && car.isPresent()) {
+                  return Optional.of(findCheapestInsurance(person.get(), car.get()));
+              } else {
+                  return Optional.empty();
+              }
+          }
+          ```
+          * 이 메서드의 장점은 person과 car의 시그니처만으로 둘 다 아무 값도 반환하지 않을 수 있다는 정보를 명시적으로 보여줌
+          * 구현 코드는 null 확인 코드와 크게 다른 점이 없음
+
+* 필터로 특정값 거르기
+  * 종종 객체의 메서드를 호출해서 어떤 프로퍼티를 확인 해야 할 때가 존재함
+    * 예를 들어 보험 회사 이름이 'CambridgeInsurance'인지 확인 해야 한다고 가정
+    * Insurance 객체가 null인지 여부를 확인한 후 getName 메서드를 호출 해야함
+      ```
+      Insurance insurance = ...;
+      if (insurance != null && "CambridgeInsurance".equals(insurance.getName())) {
+          System.out.println("ok");
+      }
+      ```
+      * Optional 객체에 filter 메서드를 이용, 재구현
+        ```
+        Optional<Insurance> optInsurance = ...;
+        optInsurance.filter(insurance -> "CambridgeInsurance".equals(insurance.getName()))
+                .ifPresent(x -> System.out.println("OK")); 
+        ```
+        * filter 메서드는 프레디케이트를 인수로 받음
+        * Optional 객체가 값을 가지며 프레디케이트와 일치하면 filter 메서드는 그 값을 반환, 그렇지 않으면 빈 Optional 객체를 반환
+        * Optional은 최대 한 개의 요소를 포함할 수 있는 스트림과 같음
+        * Optional이 비어있다면 filter 연산은 아무 동작도 하지 않고, 값이 있으면 그 값에 프레디케이트를 적용함
+        * 프레디케이트 적용 결과가 true면 Optional에는 아무 변화도 일어나지 않고 false면 값은 사라지고 Optional은 빈 상태가 됨
+
+* Optional 클래스의 메서드
+  * empty
+    * 빈 Optional 인스턴스 반환
+  * filter
+    * 값이 존재하며 프레디케이트와 일치하면 값을 포함하면 Optional을 반환
+    * 값이 없거나 프레디케이트와 일차히지 않으면 빈 Optional을 반환
+  * flatMap
+    * 값이 존재하면 인수로 제공된 함수를 적용한 결과 Optional을 반환
+    * 값이 없으면 빈 Optional을 반환
+  * get
+    * 값이 존재하면 Optional이 감싸고 있는 값을 반환
+    * 값이 없으면 NoSuchElementException이 발생함
+  * ifPresent
+    * 값이 존재하면 지정된 Customer를 실행
+    * 값이 없으면 아무일도 일어나지 않음
+  * ifPresentOrElse
+    * 값이 존재하면 Customer를 실행
+    * 값이 없으면 Runnable를 실행
+  * isPresent
+    * 값이 존재하면 true 반환
+    * 값이 없으면 false 반환
+  * map
+    * 값이 존재하면 제공된 매핑 함수를 적용함
+  * of
+    * 값이 존재하면 값을 감싸는 Optional읇 반환
+    * 값이 null이면 NullPointerException 발생
+  * ofNullable
+    * 값이 존재하면 값을 감싸는 Optional읇 반환
+    * 값이 null이면 빈 Optional을 반환 
+  * or
+    * 값이 존재하면 같은 Optional읇 반환
+    * 값이 없으면 Supplier에서 만든 Optional을 반환 
+  * orElse
+    * 값이 존재하면 값을 반환
+    * 값이 없으면 기본값을 반환
+  * orElseGet
+    * 값이 존재하면 값을 반환
+    * 값이 없으면 Supplier에서 제공하는 값을 반환 
+  * orElseThrow
+    * 값이 존재하면 값을 반환
+    * 값이 없으면 Supplier에서 생성한 예외를 발생
+  * stream
+    * 값이 존재하면 존재하는 값만 포함하는 스트림 반환
+    * 값이 없으면 빈 스트림 반환
+
+### Optional을 사용한 실용 예제
+* 새 Optional 클래스를 효과적으로 이용하려면 잠재적으로 존재하지 않는 값의 처리 방법을 바꿔야 함
+* 코드 구현만 바꾸는 것이 아니라, 네이티브 자바 API와 상호작용하는 방식도 바꿔야 함
+* 호환성을 유지하다보니 기존 자바 API는 Optional을 적절하게 활용하지 못하고 있음
+* Optional 기능을 활용할 수 있도록 우리 코드에 작은 유틸리티 메서드를 추가하는 방식으로 이 문제를 해결 가능
+
+* 잠재적으로 null이 될 수 있는 대상을 Optional로 감싸기
+  * 기존 자바 API에서는 null을 반환하면서 요청한 값이 없거나 어떤 문제로 계산에 실패했음을 알림
+    * 예를 들어 Map의 get 메서드는 요청한 키에 대응하는 값을 찾지 못했을 때 null을 반환
+    * Optional로 감싸서 이를 개선
+    * 첫 번째, 기존처럼 if-then-else를 추가
+    * 두 번째, get 메서드의 반환값을 ofNullable을 이용하여 Optional로 감쌈
+      ```
+      Optional<Object> value = Optional.ofNullable(map.get("key"));
+      ```
+
+* 예외와 Optional 클래스
+  * 자바 API는 어떤 이유에서 값을 제공할 수 없을 때 null을 반환하는 대신 예외를 발생시킬 때도 있음
+    * 전형적인 예가 문자열을 정수로 변환하는 정적 메서드 Integer.parseInt(String)
+      * 이 메서드는 문자열을 정수로 변환하지 못할 때 NumberFormatException을 발생시킴
+      * 즉, 문자열이 숫자가 아니라는 사실을 예외로 알림
+    * parseInt가 Optional을 반환하도록 모델링
+      * 유틸리티 구현
+        ```
+        public static Optional<Integer> stringToInt(String s) {
+            try {
+                // 문자열을 정수로 변환할 수 있으면 정수로 변환된 값을 포함하는 Optional을 반환
+                return Optional.of(Integer.parseInt(s));
+            } catch (NumberFormatException e) {
+                // 그렇지 않으면 빈 Optional을 반환
+                return Optional.empty();
+            }
+        }
+        ```
+
+* 기본형 Optional을 사용하지 말아야 하는 이유
+  * 스트림처럼 Optional도 기본형으로 특화된 OptionalInt, OptionalLong, OptionalDouble 등의 클래스 제공
+    * 예를 들어 Optional<Integer> 대신 OptionalInt를 반환할 수 있음
+  * 스트림이 많은 요소를 가질 때는 기본형 특화 스트림을 이용해서 성능을 향상시킬 수 있음
+  * 하지만 Optional의 최대 요소 수는 한 개이므로 Optional은 기본형 특화 클래스로 성능을 개선할 수 없음
+  * 기본형 특화 클래스는 map, flatMap, filter 등을 지원하지 않아 기본형 특화 클래스 사용을 권장하지 않음
+  * 기본형 특화 클래스는 일반 Optional과 혼용할 수 없음
+    * 예를 들어 OptionalInt를 반환한다면 이를 다른 Optional의 flatMap에 메서드 참조로 전달할 수 없음
+
+* 응용
+  * 예를 들어 프로그램의 설정 인수로 Properties를 전달한다고 가정
+    ```
+    Properties props = new Properties();
+    props.setProperty("a", "5");
+    props.setProperty("b", "true");
+    props.setProperty("c", "-3");
+    ```
+    * 이제 프로그램에서는 Properties를 읽어서 값을 초 단위의 지속 시간으로 해석함
+      * 다음과 같은 메서드 시그니처로 지속 시간 읽을 것
+        ``` public int readDuration(Properties props, String name) ```
+      * 지속 시간은 양수여야 하므로 문자열이 양의 정수를 가리키면 해당 정수를 반환하지만 그 외는 0을 반환
+        * 이를 Junit 어설션(assertion)으로 구현
+          ```
+          assertEquals(5, readDurationImperative(props, "a"));
+          assertEquals(0, readDurationImperative(props, "b"));
+          assertEquals(0, readDurationImperative(props, "c"));
+          assertEquals(0, readDurationImperative(props, "d"));
+          ```
+          * 어설션 의미
+            * 프로퍼티 'a'는 양수로 변환할 수 있는 문자열을 포함하므로 readDuration 5를 반환
+            * 프로퍼티 'b'는 양수로 변환할 수 없는 문자열을 포함하므로 0 반환
+            * 프로퍼티 'c'는 음수 문자열을 포함하므로 0 반환
+            * 프로퍼티 'd'라는 이름의 프로퍼티는 없으므로 0 반환
+
+### 정리
+* 역사적으로 프로그래밍 언어에서는 null 참조로 값이 없는 상황을 표현해옴
+* 자바 8에서는 값이 있거나 없음을 표현할 클래스 java.util.Optional<T>를 제공함
+* 팩토리 메서드 Optional.empty, Optional.of, Optional.ofNullable 등을 이용해 Optional 객체를 만들 수 있음
+* Optional 클래스는 스트림과 비슷한 연산을 수행하는 map, flatMap, filter 등의 메서드를 제공함
+* Optional로 값이 없는 상황을 적절하게 처리하도록 강제할 수 있음
+  * 즉, Optional로 예상치 못한 null 예외를 방지할 수 있음
+* Optional을 활용하면 더 좋은 API를 설계할 수 있음
+  * 즉, 사용자는 메서드의 시그니처만 보고도 Optional값이 사용되거나 반환되는지 예측 가능
+
+### [quiz]
+* map, flatMap 메서드를 이용, 기존의 nullSafeFindCheapestInsurance() 메서드를 한줄의 코드로 재구현하기
+  ```
+  public Optional<Insurance> nullSafeFindCheapestInsurance(
+  		Optional<Person> person, Optional<Car> car) {
+      return person.flatMap(p -> car.map(c -> findCheapestInsurance(p, c)));
+  }
+  ```
+  * 첫 번째 Optional에 flatMap을 호출했으므로 첫 번째 Optional이 비어있다면 인수로 전달한 람다 표현식이 실행되지 않고 빈 Optional 반환
+  * 반면 person값이 있으면 flatMap 메서드에 필요한 Optional<Insurance>를 반환하는 Function의 입력으로 person을 사용함
+  * 이 함수의 바디에서는 두 번째 Optional에 map을 호출하므로 Optional이 car값을 포함하지 않으면 Function이 빈 Optional을 반환
+  * 결국 nullSafeFindCheapestInsurance 메서드는 빈 Optional을 반환
+  * 마지막으로 person, car가 모두 존재하면 map 메서드로 전달한 람다 표현식이 findCheapestInsurance 메서드를 안전하게 호출 가능
+
+* 다음 시그니처를 이용, getCarInsuranceName 메서드 고치기
+  ``` public String getCarInsuranceName(Optional<Person> person, int minAge) ```
+  * 정답
+    ```
+    public String getCarInsuranceName(Optional<Person> person, int minAge) {
+        return person.filter(p -> p.getAge() >= minAge)
+                .flatMap(Person::getCar)
+                .flatMap(Car::getInsurance)
+                .map(Insurance::getName)
+                .orElse("Unknown");
+    }
+    ```
+    * 인수 minAge 이상의 나이를 먹은 사람만 선택하도록 프레디케이트를 설정해서 filter 메서드에 전달하는 방식으로 Optional에서 person 필터링 가능
+
+* Optional클래스의 기능과 유틸리티 메서드를 이용해서 위 얘제 프로퍼티에서 지속 시간 읽기의 명령형 코드를 하나의 유연한 코드로 재구현하기
+  ```
+  public int readDuration(Properties props, String name) {
+  	// Properties.getProperty(String)은 null을 반환하므로
+  	// ofNullable 팩토리 메서드를 이용 Optional을 반환하도록 변경 가능
+  	return ofNullable(props.getProperty(name))
+  			// OptionalUtility 클래스 stringToInt 유틸리티 메서드 참조를 전달
+  			// Optional<String>을 Optional<Integer>로 변경 가능
+  			.flatMap(ReadPositiveIntParam::s2i)
+  			// 음수를 필터링해서 제거
+  			.filter(i -> i > 0).orElse(0);
+  }
+  ```
+  * 이 과정에서 하나라도 빈 Optional을 반환하면 orElse 메서드에 의해 기본값 0이 반환됨
+  * 값을 포함하는 Optional을 반환하면 들어있는 양수를 반환
+---
