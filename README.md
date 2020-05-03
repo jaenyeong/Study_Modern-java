@@ -5636,3 +5636,577 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   * 이 과정에서 하나라도 빈 Optional을 반환하면 orElse 메서드에 의해 기본값 0이 반환됨
   * 값을 포함하는 Optional을 반환하면 들어있는 양수를 반환
 ---
+
+## chapter 12 - 새로운 날짜와 시간 API
+* java.util.Date 클래스
+  * 날짜를 의미하는 Date라는 클래스명과 달리 특정 시점을 날짜가 아닌 밀리초 단위로 표현함
+  * 게다가 1900년을 기준으로 하는 오프셋, 0에서 시작하는 달 인덱스 등 모호한 설계로 유용성이 떨어짐
+  * 2017년 9월 21일을 가리키는 Date 인스턴스를 만드는 코드
+    ``` Date date = new Date(117, 8, 21); ```
+    * 출력 결과
+      ``` Thu Sep 21 00:00:00 CET 2017 ```
+    * 결과가 직관적이지 않음
+    * Date 클래스의 toString으로는 반환되는 문자열을 추가로 활용하기 어려움
+    * JVM 기본 시간대인 CET(중앙 유럽 시간대)를 사용함
+    * Date 클래스가 자체적으로 시간대 정보를 알고 있는 것도 아님
+  * Date 클래스의 문제가 있었지만 과거 버전과 호환성을 유지하면서 해결할 수 있는 방법이 없었음
+* java.util.Calendar 클래스를 대안으로 제공
+  * 역시 쉽게 에러를 일으키는 설계로 인한 문제
+    * 에를 들어 1900년도에서 시작하는 오프셋은 없앴지만 여전히 달의 인덱스는 0부터 시작함
+    * Calendar 클래스가 등장하면서 Date 클래스와 함께 개발자에게 혼란을 가중시킴
+      * Date, Calendar 중 어떤 것을 사용해야 할지 혼동을 가져옴
+    * DateFormat 같은 일부 기능은 Date 클래스에만 작동함
+      * DateFormat은 언어 종류와 독립적으로 날짜와 시간의 형식을 조절하고 파싱할 때 사용함
+      * DateFormat에도 문제가 있음
+        * 스레드에 안전하지 않음
+          * 즉 두 스레드가 동시에 하나의 포매터로 날짜를 파싱할 때 예기치 못한 결과 발생할 수 있음
+  * Date, Calendar 모두 가변 클래스
+    * 유지보수가 어려워짐
+* 부실한 날짜와 시간 라이브러리로 인해 많은 개발자는 Joda-Time 같은 서드파티 라이브러리를 사용함
+  * java 8에서 Joda-Time의 많은 기능을 java.time 패키지에 추가함
+
+### LocalDate, LocalTime, Instant, Duration, Period 클래스
+* java.time 패키지는 LocalDate, LocalTime, Instant, Duration, Period 등 새로운 클래스 제공
+
+* LocalDate, LocalTime 사용
+  * LocalDate
+    * 시간을 제외한 날짜를 표현하는 불변 객체
+    * 어떤 시간대 정보도 포함하지 않음
+    * 정적 팩토리 메서드 of로 인스턴스 생성
+    * 연도, 달, 요일 등을 반환하는 메서드 제공
+      ```
+      // 2017-09-21
+      LocalDate date = LocalDate.of(2017, 9, 21);
+      int year = date.getYear();           // 2017
+      Month month = date.getMonth();       // SEPTEMBER
+      int day = date.getDayOfMonth();      // 21
+      DayOfWeek dow = date.getDayOfWeek(); // THURSDAY
+      int length = date.lengthOfMonth();   // 31 (3월의 일 수)
+      boolean leap = date.isLeapYear();    // false (윤년이 아님)
+      ```
+    * 팩토리 메서드 now는 시스템 시계의 정보를 이용해 현재 날짜 정보를 얻음
+      ``` LocalDate today = LocalDate.now(); ```
+  * get 메서드에 TemporalField를 전달해 정보를 얻는 방법도 있음
+    * TemporalField는 시간 관련 객체에서 어떤 필드의 값에 접근할지 정의하는 인터페이스
+  * 열거자 ChronoField는 TemporalField 인터페이스를 정의함
+    * 열거자 요소를 이용해 원하는 정보를 얻는 코드
+      ```
+      int year = date.get(ChronoField.YEAR);
+      int month = date.get(ChronoField.MONTH_OF_YEAR);
+      int day = date.get(ChronoField.DAY_OF_MONTH);
+      ```
+    * 내장 메서드 getYear(), getMonthValue(), getDayOfMonth() 등을 이용하여 가독성 높임
+      ```
+      LocalDate date = LocalDate.of(2017, 9, 21);
+      int year = date.getYear();
+      int month = date.getMonthValue();
+      int day = date.getDayOfMonth();
+      ```
+  * LocalTime
+    * 13:45:20 같은 시간 표현
+    * 오버로드 버전의 두가지 정적 메서드 of로 LocalTime 인스턴스 생성
+      * 시간과 분을 인수로 받는 of 메서드
+      * 시간, 분, 초를 인수로 받는 of 메서드
+    * LocalDate 클래스처럼 다음과 같은 게터 메서드 제공
+      ```
+      // 정적 팩토리 메서드 of를 사용
+      // 13:45:20
+      LocalTime time = LocalTime.of(13, 45, 20);
+      int hour = time.getHour();     // 13
+      int minute = time.getMinute(); // 45
+      int second = time.getSecond(); // 20
+      ```
+  * parse 정적 메서드로 날짜와 시간 문자열을 통해 LocalDate, LocalTime 인스턴스 생성
+    ```
+    // 날짜와 시간 문자열로 인스턴스 생성
+    LocalDate date = LocalDate.parse("2017-09-21");
+    LocalTime time = LocalTime.parse("13:45:20");
+    ```
+    * DateTimeFormater를 전달 가능
+      * DateTimeFormater의 인스턴스는 날짜, 시간 객체의 형식을 지정함
+      * DateTimeFormater는 이전에 java.util.DateFormat 클래스를 대체하는 클래스
+    * 문자열을 LocalDate, LocalTime으로 파싱할 수 없을 때 DateTimeParseException(RuntimeException 상속) 예외 발생
+
+* 날짜와 시간 조합
+  * LocalDateTime
+    * LocalDate, LocalTime을 쌍으로 갖는 복합 클래스
+    * 날짜와 시간을 모두 표현
+    * 직접 만들거나 날짜와 시간을 조합하는 방법
+      ```
+      LocalDate date = LocalDate.of(2017, 9, 21);
+      LocalTime time = LocalTime.of(13, 45, 20);
+  
+      // 2017-09-21T13:45:20
+      LocalDateTime dt1 = LocalDateTime.of(2017, Month.SEPTEMBER, 21, 13, 45, 20);
+      LocalDateTime dt2 = LocalDateTime.of(date, time);
+      LocalDateTime dt3 = date.atTime(13, 45, 20);
+      LocalDateTime dt4 = date.atTime(time);
+      LocalDateTime dt5 = time.atDate(date);
+      ```
+      * LocalDate의 atTime 메서드에 시간을 제공하거나 LocalTime의 atDate 메서드에 날짜를 제공하는 방법
+    * LocalDateTime의 toLocalDate, toLocalTime 메서드로 LocalDate, LocalTime 인스턴스 추출 가능
+      ```
+      LocalDate date1 = dt1.toLocalDate();
+      LocalTime time1 = dt1.toLocalTime();
+      ```
+
+* Instant 클래스 : 기계의 날짜와 시간
+  * 기계에서는 주, 날짜, 시간, 분으로 날짜와 시간을 계산하기 어려움
+  * 기계의 관점에서는 연속된 시간에서 특정 지점을 하나의 큰 수로 표현하는 것이 가장 자연스러운 시간 표현 방법
+  * java.time.Instant 클래스에서는 이와 같은 기계적 관점에서 시간을 표현
+    * 유닉스 에포크 시간(Unix ephoch time - 1970년 1월 1일 0시 0분 0초 UTC)을 기준으로 특정 지점까지의 시간을 초로 표현함
+  * 팩토리 메서드 ofEpochSecond에 초를 넘겨줘 Instant 클래스 인스턴스를 만들 수 있음
+  * Instant 클래스는 나노초(10억분의 1초)의 정밀도를 제공함
+  * 또한 오버로드된 ofEpochSecond 메서드 버전에서는 두 번째 인수를 이용해서 나노초 단위로 시간을 보정 가능
+    * 두 번째 인수에는 0 ~ 999,999,999 사이의 값 지정 가능
+    * 따라서 다음 네 가지 ofEpochSecond 호출 코드는 같은 Instant를 반환
+      ```
+      Instant.ofEpochSecond(3);
+      Instant.ofEpochSecond(3, 0);
+      // 2초 이후의 1억 나노초(1초)
+      Instant.ofEpochSecond(2, 1_000_000_000);
+      // 4초 이전의 1억 나노초(1초)
+      Instant.ofEpochSecond(4, -1_000_000_000);
+      ```
+  * 사람이 확인할 수 있도록 시간을 표시해주는 정적 팩토리 메서드 now 제공
+    * 하지만 Instant 클래슨느 기계 전용 유틸리티
+    * 즉 초와 나노초 정보를 포함함
+    * 다음 코드는 예외를 일으킴
+      ```
+      int day = Instant.now().get(ChronoField.DAY_OF_MONTH);
+      ```
+      * java.time.temporal.UnsupportedTemporalTypeException: Unsupported field: DayOfMonth
+  * Instant에서는 Duration과 Period 클래스를 함께 활용 가능
+
+* Duration, Period 정의
+  * 지금까지 본 모든 클래스는 Temporal 인터페이스를 구현
+    * Temporal 인터페이스는 특정 시간을 모델링하는 객체의 값을 어떻게 읽고 조작할지 정의함
+  * 두 시간 객체 사이의 지속시간 duration
+    * Duration 클래스의 정적 팩토리 메서드 between으로 두 시간 객체 사이의 지속시간을 만들 수 있음
+    * 두 개의 LocalTime, 두 개의 LocalDateTime, 또는 두 개의 Instant로 Duration을 만들 수 있음
+      ```
+      LocalTime time1 = LocalTime.of(13, 45, 20);
+      LocalTime time2 = LocalTime.of(13, 55, 20);
+  
+      LocalDateTime ldt1 = LocalDateTime.of(2017, Month.SEPTEMBER, 21, 13, 45, 20);
+      LocalDateTime ldt2 = LocalDateTime.of(2017, Month.SEPTEMBER, 21, 13, 55, 20);
+  
+      Instant instant1 = Instant.ofEpochSecond(3);
+      Instant instant2 = Instant.ofEpochSecond(4);
+  
+      Duration d1 = Duration.between(time1, time2);
+      Duration d2 = Duration.between(ldt1, ldt2);
+      Duration d3 = Duration.between(instant1, instant2);
+      ```
+    * Duration 클래스는 초와 나노초로 시간 단위를 표현하므로 between 메서드에 LocalDate를 전달할 수 없음
+  * LocalDateTime은 사람이, Instant는 기계가 사용하도록 만들어진 클래스로 두 인스턴스는 서로 혼합할 수 없음
+  * 년, 월, 일로 시간을 표현할 때는 Period 클래스를 사용
+    * Period 클래스의 팩토리 메서드 between을 이용하면 두 LocalDate의 차이를 확인할 수 있음
+      ```
+      Period tenDays = Period.between(
+              LocalDate.of(2017, 9, 11),
+              LocalDate.of(2017, 9, 21));
+      ```
+  * Duration, Period는 자신의 인스턴스를 만들 수 있도록 다양한 팩토리 메서드를 지원
+    * 두 시간 객체를 사용하지 않고도 Duration, Period 클래스를 만드는 예제
+      ```
+      Duration threeMinutes1 = Duration.ofMinutes(3);
+      Duration threeMinutes2 = Duration.of(3, ChronoUnit.MINUTES);
+  
+      Period tenDays = Period.ofDays(10);
+      Period threeWeeks = Period.ofWeeks(3);
+      Period twoYearsSixMonthOneDay = Period.of(2, 6, 1);
+      ```
+  * Duration, Period 클래스가 공통으로 제공하는 메서드 표
+    * between
+      * 정적 : O
+      * 두 시간 사이의 간격을 생성
+    * from
+      * 정적 : O
+      * 시간 단위로 간격을 생성함
+    * of
+      * 정적 : O
+      * 주어진 구성 요소에서 간격 인스턴스를 생성함
+    * parse
+      * 정적 : O
+      * 문자열을 파싱해서 간격 인스턴스를 생성함
+    * addTo
+      * 정적 : X
+      * 현재값의 복사본을 생성한 후, 지정된 Temporal 객체에 추가함
+    * get
+      * 정적 : X
+      * 현재 간격 정보값을 읽음
+    * isNegative
+      * 정적 : X
+      * 간격이 음수인지 확인함
+    * isZero
+      * 정적 : X
+      * 간격이 0인지 확인함
+    * minus
+      * 정적 : X
+      * 현재값에서 주어진 시간을 뺀 복사본을 생성함
+    * multipliedBy
+      * 정적 : X
+      * 현재값에 주어진 값을 곱한 복사본을 생성함
+    * negated
+      * 정적 : X
+      * 주어진 값의 부호를 반전한 복사본을 생성함
+    * plus
+      * 정적 : X
+      * 현재값에 주어진 시간을 더한 복사본을 생성함
+    * subtractFrom
+      * 정적 : X
+      * 지정된 Temporal 객체에서 간격을 뺌
+
+* 지금까지 살펴본 모든 클래스는 불변
+  * 불변 클래스는 함수형 프로그래밍, 스레드 안정성과 도메인 모델의 일관성을 유지하는데 좋은 특징
+  * 하지만 새로운 날짜와 시간 API에서는 변경된 객체 버전을 만들 수 있는 메서드 제공
+
+### 날짜 조정, 파싱, 포매팅
+* withAttribute 메서드로 기존의 LocalDate를 바꾼 버전을 만들 수 있음
+* 바뀐 속성을 포함하는 새로운 객체를 반환하는 메서드를 보여주는 예제 코드
+  * 모든 메서드는 기존 객체를 바꾸지 않음
+  ```
+  LocalDate date1 = LocalDate.of(2017, 9, 21);
+  LocalDate date2 = date1.withYear(2011);
+  LocalDate date3 = date2.withDayOfMonth(25);
+  LocalDate date4 = date3.with(ChronoField.MONTH_OF_YEAR, 2);
+  ```
+  * 마지막 행에서 보여주는 것처럼 첫 번째 인수로 TemporalField를 갖는 메서드를 사용하면 범용적으로 메서드를 활용할 수 있음
+    * 마지막 with 메서드는 get 메서드와 쌍을 이룸
+      * 이들 두 메서드는 날짜와 시간 API의 모든 클래스가 구현하는 Temporal 인터페이스에 정의되어 있음
+      * Temporal 인터페이스는 LocalDate, LocalTime, LocalDateTime, Instant처럼 특정 시간을 정의함
+      * 정확히 표현하면 get, with 메서드로 Temporal 객체의 필드값을 읽거나 고칠 수 있음
+        * with 메서드는 기존의 Temporal 객체를 바꾸는 것이 아니라 필드를 갱신한 복사본을 만듦
+        * 이런 과정을 함수형 갱신이라 부름
+      * 어떤 Temporal 객체가 지정된 필드를 지원하지 않으면 UnsupportedTemporalTypeException이 발생
+        * 예를 들어 Instant에 ChronoField.MONTH_OF_YEAR를 사용시 예외 발생
+        * 또는 LocalDate에 ChronoField.NANO_OF_SECOND를 사용시 예외 발생
+  * 선언형으로 LocalDate를 사용하는 방법
+    * 지정된 시간을 추가, 빼는 예제
+      ```
+      LocalDate date1 = LocalDate.of(2017, 9, 21);
+      LocalDate date2 = date1.plusWeeks(1);
+      LocalDate date3 = date2.minusYears(6);
+      LocalDate date4 = date3.plus(6, ChronoUnit.MONTHS);
+      ```
+    * plus, minus도 Temporal 인터페이스에 정의되어 있음
+  * 이들 메서드를 이용해 Temporal을 특정 시간만큼 앞뒤로 이동시킬 수 있음
+    * 메서드의 인수에 숫자와 TemporalUnit을 활용할 수 있음
+    * ChronoUnit 열거형은 TemporalUnit 인터페이스를 쉽게 활용할 수 있는 구현을 제공함
+
+* LocalDate, LocalTime, LocalDateTime, Instant 등 날짜와 시간을 표현하는 모든 클래스는 비슷한 메서드를 제공함
+  * 공통 메서드 표
+    * from
+      * 정적 : O
+      * 주어진 Temporal 객체를 이용해서 Temporal 객체의 인스턴스를 생성함
+    * now
+      * 정적 : O
+      * 시스템 시계로 Temporal 객체의 인스턴스를 생성함
+    * of
+      * 정적 : O
+      * 주어진 구성 요소에서 Temporal 객체의 인스턴스를 생성함
+    * parse
+      * 정적 : O
+      * 문자열을 파싱해서 Temporal 객체를 생성함
+    * atOffset
+      * 정적 : X
+      * 시간대 오프셋과 Temporal 객체를 합침
+    * atZone
+      * 정적 : X
+      * 시간대 오프셋과 Temporal 객체를 합침
+    * format
+      * 정적 : X
+      * 지정된 포매터를 이용해서 Temporal 객체를 문자열로 변환함 (Instant는 지원하지 않음)
+    * get
+      * 정적 : X
+      * Temporal 객체의 상태를 읽음
+    * minus
+      * 정적 : X
+      * 특정 시간을 뺀 Temporal 객체의 복사본을 생성함
+    * plus
+      * 정적 : X
+      * 특정 시간을 더한 Temporal 객체의 복사본을 생성함
+    * with
+      * 정적 : X
+      * 일부 상태를 바꾼 Temporal 객체의 복사본을 생성함
+
+* TemporalAdjusters 사용하기
+  * 복잡한 날짜 조정 기능이 필요함
+    * 예를 들어 다음 주 일요일, 돌아오는 평일, 어떤 달의 마지막 날 등
+    * 오버로드된 버전의 with 메서드에 좀 더 다양한 동작을 수행할 수 있도록 하는 기능을 제공하는 TemporalAdjusters를 전달하는 방법으로 해결 가능
+  * TemporalAdjusters에서 정의하는 정적 팩토리 메서드로 이용 가능
+    * TemporalAdjuster는 인터페이스
+    * TemporalAdjusters는 TemporalAdjuster를 반환하는 정적 팩토리 메서드를 포함하는 클래스
+  * TemporalAdjusters의 팩토리 메서드로 만들 수 있는 TemporalAdjuster 리스트
+    * dayOfWeekInMonth
+      * 서수 요일에 해당하는 날짜를 반환하는 TemporalAdjuster를 반환함 (음수를 사용하면 월의 끝에서 거꾸로 계산)
+    * firstDayOfMonth
+      * 현재 달의 첫 번째 날짜를 반환하는 TemporalAdjuster를 반환함
+    * firstDayOfNextMonth
+      * 다음 달의 첫 번째 날짜를 반환하는 TemporalAdjuster를 반환함
+    * firstDayOfNextYear
+      * 내년의 첫 번째 날짜를 반환하는 TemporalAdjuster를 반환함
+    * firstDayOfYear
+      * 올해의 첫 번째 날짜를 반환하는 TemporalAdjuster를 반환함
+    * firstInMonth
+      * 현재 달의 첫 번째 요일에 해당하는 날짜를 반환하는 TemporalAdjuster를 반환함
+    * lastDayOfMonth
+      * 현재 달의 마지막 날짜를 반환하는 TemporalAdjuster를 반환함
+    * lastDayOfNextMonth
+      * 다음 달의 마지막 날짜를 반환하는 TemporalAdjuster를 반환함
+    * lastDayOfNextYear
+      * 내년의 마지막 날짜를 반환하는 TemporalAdjuster를 반환함
+    * lastDayOfYear
+      * 올해의 마지막 날짜를 반환하는 TemporalAdjuster를 반환함
+    * lastInMonth
+      * 현재 달의 마지막 요일에 해당하는 날짜를 반환하는 TemporalAdjuster를 반환함
+    * next previous
+      * 현재 달에서 현재 날짜 이후/이전으로 지정한 요일이 처음으로 나타나는 날짜를 반환하는 TemporalAdjuster를 반환함
+    * nextOrSame previousOrSame
+      * 현재 날짜 이후/이전으로 지정한 요일이 처음으로 나타나는 날짜를 반환하는 TemporalAdjuster를 반환함(현재 날짜도 포함)
+  * TemporalAdjuster를 이용하면 좀 더 복잡한 날짜 조정 기능을 직관적으로 해결 가능
+    * 원하는 기능이 정의되어 있지 않을 때 쉽게 커스텀 TemporalAdjuster 구현을 만들 수도 있음
+    * 실제로 TemporalAdjuster 인터페이스는 다음처럼 하나의 메서드만 정의함
+      ```
+      @FunctionalInterface
+      public interface TemporalAdjuster {
+          Temporal adjustInto(Temporal temporal);
+      }
+      ```
+    * TemporalAdjuster 인터페이스 구현은 Temporal 객체를 어떻게 다른 Temporal 객체로 변환할지 정의함
+    * 결국 TemporalAdjuster 인터페이스를 UnaryOperator<Temporal>과 같은 형식으로 간주할 수 있음
+
+* 날짜와 시간 객체 출력과 파싱
+  * 포매팅, 파싱 전용 패키지인 java.time.format이 새로 추가됨
+    * 이 패키지에서 가장 중요한 클래스는 DateTimeFormatter
+      * 정적 팩토리 메서드와 상수를 이용해 손쉽게 포매터를 만들 수 있음
+      * DateTimeFormatter 클래스는 BASIC_ISO_DATE, ISO_LOCAL_DATE 등의 상수를 미리 정의하고 있음
+      * 날짜나 시간을 특정 형식의 문자열로 만들 수 있음
+      * 두 개의 서로 다른 포매터로 문자열을 만드는 예제
+        ```
+        LocalDate date = LocalDate.of(2014, 3, 18);
+        String s1 = date.format(DateTimeFormatter.BASIC_ISO_DATE); // 20140318
+        String s2 = date.format(DateTimeFormatter.ISO_LOCAL_DATE); // 2014-03-18
+        ```
+      * 반대로 날짜나 시간을 표현하는 문자열을 파싱해 날짜 객체를 다시 만들 수 있음
+        * 날짜나 시간 API에서 특정 시점이나 간격을 표현하는 모든 클래스의 팩토리 메서드 parse를 이용, 문자열을 날짜 객체로 만들 수 있음
+        ```
+        LocalDate date1 = LocalDate.parse("20140318", DateTimeFormatter.BASIC_ISO_DATE);
+        LocalDate date2 = LocalDate.parse("2014-03-18", DateTimeFormatter.ISO_LOCAL_DATE);
+        ```
+  * java.util.DateFormat 클래스와 달리 DateTimeFormatter는 스레드에서 안전하게 사용할 수 있는 클래스
+    * 특정 패턴으로 포매터를 만들 수 있는 정적 팩토리 메서드 제공 예제
+      ```
+      DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+      LocalDate date1 = LocalDate.of(2014, 3, 18);
+      String formattedDate = date1.format(formatter);
+      LocalDate date2 = LocalDate.parse(formattedDate, formatter);
+      ```
+      * LocalDate의 format 메서드는 요청 형식의 패턴에 해당하는 문자열을 생성함
+      * 그리고 정적 메서드 parse는 같은 포매터를 적용해서 생성된 문자열을 파싱함으로써 다시 날짜를 생성함
+      * ofPattern 메서드도 Locale로 포매터를 만들 수 있도록 오버로드 된 메서드를 제공함
+        ```
+        DateTimeFormatter italianFormatter = DateTimeFormatter.ofPattern("d. MMMM yyyy", Locale.ITALIAN);
+        LocalDate date1 = LocalDate.of(2014, 3, 18);
+        String formattedDate = date1.format(italianFormatter); // 18. marzo 2014
+        LocalDate date2 = LocalDate.parse(formattedDate, italianFormatter);
+        ```
+      * DateTimeFormatterBuilder 클래스로 복합적인 포매터를 정의해서 세부적으로 포매터를 제어할 수 있음
+        * DateTimeFormatter 클래스로 아래와 같은 활용 가능
+          * 대소문자를 구분하는 파싱
+          * 관대한 규칙을 적용하는 파싱 (정해진 형식과 정확하게 일치하지 않는 입력을 해석할 수 있도록 체험적 방식의 파서 사용)
+          * 패딩, 포매터의 선택사항 등
+          * 예를 들어 위 예제에서 사용한 italianFormatter를 DateTimeFormatterBuilder에 이용하면 프로그램적으로 포매터를 만들 수 있음
+
+### 다양한 시간대와 캘린터 활용 방법
+* 새로운 날짜와 시간 API의 편리함 중 하나는 시간대를 간단히 처리할 수 있는 것
+* 기존의 java.util.TimeZone을 대체할 수 있는 java.time.ZoneId 클래스
+  * 새로운 클래스를 사용하면 서머타임(Daylight Saving Time - DST) 같은 복잡항 사항이 자동으로 처리됨
+  * ZoneId 클래스는 불변 클래스
+
+* 시간대 사용하기
+  * 표준 시간이 같은 지역을 묶어 시간대(time zone) 규칙 집합을 정의함
+  * ZoneRules 클래스에는 약 40개 정도의 시간대가 있음
+  * ZoneId의 getRules()를 이용, 해당 시간대의 규정을 획득할 수 있음
+  * 지역 ID로 특정 ZoneId를 구분
+    ``` ZoneId romeZone = ZoneId.of("Europe/Rome"); ```
+    * 지역 ID는 {지역/도시} 형식
+      * IANA Time Zone Database에서 제공하는 지역 집합 정보를 사용함 (https://www.iana.org/time-zones)
+  * ZoneId의 새로운 메서드 toZoneId로 기존의 TimeZone 객체를 ZoneId 객체로 변환할 수 있음
+    ``` ZoneId zoneId = TimeZone.getDefault().toZoneId(); ```
+  * ZoneId 객체를 얻은 다음에는 LocalDate, LocalDateTime, Instant를 이용해 ZonedDateTime 인스턴스로 변환 가능
+    * ZonedDateTime은 지정한 시간대에 상대적인 시점을 표현함
+    ```
+    LocalDate date = LocalDate.of(2014, Month.MARCH, 18);
+    ZonedDateTime zdt1 = date.atStartOfDay(romeZone);
+    LocalDateTime dateTime = LocalDateTime.of(2014, Month.MARCH, 18, 13, 45);
+    ZonedDateTime zdt2 = dateTime.atZone(romeZone);
+    Instant instant = Instant.now();
+    ZonedDateTime zdt3 = instant.atZone(romeZone);
+    ```
+    * ZonedDateTime : 2014-05-14T15:33:05.941+01:00[Europe/London]
+      * ZoneId : [Europe/London]
+    * LocalDateTime : 2014-05-14T15:33:05
+      * LocalDate : 2014-05-14
+      * LocalTime : 15:33:05
+  * ZoneId를 이용해 LocalDateTime을 Instant로 변경
+    ```
+    Instant instant = Instant.now();
+    LocalDateTime timeFromInstant = LocalDateTime.ofInstant(instant, romeZone);
+    ```
+    * 기존의 Date 클래스를 처리하는 코드를 사용해야 하는 상황이 있을 수 있으므로 Instant로 작업하는 것이 유리함
+    * 폐기된 API와 새 날짜와 시간 API 간의 동작에 도움이 되는 toInstant(), 정적 메서드 fromInstant() 두 개의 메서드가 있음
+
+* UTC/Greenwich 기준의 고정 오프셋
+  * UTC(Universal Time Coordinated - 협정 세계시)/GMT(Greenwitch Mean Time - 그리니치 표준시)를 기준으로 표현
+  * ZoneId의 서브클래스 ZoneOffset 클래스를 사용하여 시간값의 차이를 표현할 수 있음
+    * 예를 들어 뉴욕은 런던보다 5시간 느림. 런던의 그리니치 0도 자오선과 시간값의 차이 표현
+      ``` ZoneOffset newYorkOffset = ZoneOffset.of("-05:00"); ```
+      * 실제 미국 동부의 표준시의 오프셋값은 =05:00
+      * 하지만 위 예제는 서머타임을 제대로 처리할 수 없으므로 권장하지 않는 방식
+      * ZoneOffset은 ZoneId이므로 사용 가능
+      * 또한 ISO-8601 캘린더 시스템에서 정의하는 UTC/GMT와 오프셋으로 날짜와 시간을 표현하는 OffsetDateTime을 만드는 방법도 있음
+        ```
+        LocalDateTime dateTime = LocalDateTime.of(2014, Month.MARCH, 18, 13, 45);
+        OffsetDateTime dateTimeInNewYork = OffsetDateTime.of(dateTime, newYorkOffset);
+        ```
+  * 새로운 날짜 시간 API는 ISO 캘린더 시스템에 기반하지 않은 정보도 처리할 수 있는 기능을 제공함
+
+* 대안 캘린더 시스템 사용하기
+  * ISO-8601 캘린더 시스템은 실질적으로 전 세계에서 통용됨
+  * 하지만 자바 8에서는 추가로 4개의 캘린더를 제공함
+    * ThaiBuddhistDate
+    * MinguoDate
+    * JapaneseDate
+    * HijrahDate
+  * 위 4개 클래스와 LocalDate 클래스는 ChronoLocalDate 인터페이스를 구현
+    * ChronoLocalDate는 임의의 연대기에서 특정 날짜를 표현할 수 있는 기능을 제공하는 인터페이스
+    * 일반적으로 정적 메서드로 Temporal 인스턴스를 만들 수 있음
+      * 예제 코드
+        ```
+        LocalDate date = LocalDate.of(2014, Month.MARCH, 18);
+        JapaneseDate japaneseDate = JapaneseDate.from(date);
+        ```
+    * 또는 특정 Locale과 Locale에 대한 날짜 인스턴스로 캘린더 시스템을 만드는 방법도 있음
+      * 새로운 날짜와 시간 API에서 Chronology는 캘린더 시스템을 의미
+        * 정적 팩토리 메서드 ofLocale을 이용해 Chronology의 인스턴스 획득 가능
+          ```
+          Chronology japaneseChronology = Chronology.ofLocale(Locale.JAPAN);
+          ChronoLocalDate now = japaneseChronology.dateNow();
+          ```
+  * 날짜와 시간 API의 설계자는 ChronoLocalDate보다 LocalDate 사용을 권고
+    * 예를 들어 1년은 12개월, 1달은 31일 이하, 최소한 1년은 정해진 수의 달로 이루어졌을 것이라고 가정할 수 있음
+    * 하지만 이와 같은 가정은 특히 멀티캘린더 시스템에는 적용되지 않음
+    * 따라서 프로그램의 입출력을 지역화하는 상황을 제외하고는 모든 데이터 저장, 조작, 비즈니스 규칙 해석 등 작업에서 LocalDate를 사용해야 함
+
+* 이슬람력
+  * 자바 8에서 추가된 새로운 캘린더 중에서 제일 복잡함
+    * 이슬람력에는 변형(variant)이 있기 때문
+  * Hijrah 캘린더 시스템은 태음월(lunar month)에 기초함
+  * 새로운 달(month)을 결정할 때 새로운 달(moon)을 전 세계 어디에서나 볼 수 있는지  
+    사우디아라비아에서 처음으로 새로운 달을 볼 수 있는지 등의 변형 방법을 결정하는 메서드가 있음
+  * withVariant 메서드로 원하는 변형 방법을 선택할 수 있음
+  * 자바 8에는 HijrahDate의 표준 변형 방법으로는 UmmAl-Qura를 제공함
+  * 현재 이슬람의 연도의 시작과 끝을 ISO 날짜로 출력하는 예제
+    ```
+    HijrahDate ramadanDate = HijrahDate.now().with(ChronoField.DAY_OF_MONTH, 1)
+            // 현재 Hijrah 날짜를 얻음
+            // 얻은 날짜를 Ramadan의 첫 번째 날, 즉 9번째 달로 바꿈
+            .with(ChronoField.MONTH_OF_YEAR, 9);
+
+    System.out.println("Ramadan starts on "
+            // INSTANCE는 IsoChronology 클래스의 정적 인스턴스
+            + IsoChronology.INSTANCE.date(ramadanDate)
+            + " and ends on "
+            // Ramadan 1438은 2017-05-26에 시작해서 2017-06-24에 종료됨
+            + IsoChronology.INSTANCE.date(ramadanDate.with(TemporalAdjusters.lastDayOfMonth())));
+    ```
+
+### 정리
+* 자바 8 이전 버전에서 제공하는 기존의 java.util.Date 클래스와 관련 클래스는  
+  여러 불일치점들과 가변성, 어설픈 오프셋, 기본값, 잘못된 이름 결정 등의 설계 결함이 존재함
+* 새로운 날짜 시간 API에서 날짜와 시간 객체는 모두 불변
+* 새로운 API는 각각 사람과 기계가 편리하게 날짜와 시간 정보를 관리할 수 있도록 두 가지 표현 방식을 제공함
+* 날짜와 시간 객체를 절대적인 방법과 상대적인 방법으로 처리할 수 있으며 기존 인스턴스를 변환하지 않도록 처리 결과로 새로운 인스턴스가 생성됨
+* TemporalAdjuster를 이용하면 단순히 값을 바꾸는 것 이상의 복잡한 동작을 수행할 수 있으며 자신만의 커스텀 날짜 변환 기능을 정의 가능
+* 날짜와 시간 객체를 특정 포맷으로 출력하고 파싱하는 포매터를 정의할 수 있음
+  * 패턴을 이용하거나 프로그램으로 포매터를 만들 수 있으며 포매터는 스레드 안정성을 보장함
+* 특정 지역/장소에 상대적인 시간대 또는 UTC/GMT 기준의 오프셋을 이용해서 시간대를 정의할 수 있으며  
+  이 시간대를 날짜와 시간 객체에 적용해서 지역화 할 수 있음
+* ISO-8601 표준 시스템을 준수하지 않는 캘린더 시스템에도 사용할 수 있음
+
+### [quiz]
+* 다음 코드 실행시 date의 변수값은?
+  ```
+  LocalDate date = LocalDate.of(2014, 3, 18);
+  date = date.with(ChronoField.MONTH_OF_YEAR, 9);
+  date = date.plusYears(2).minusDays(10);
+  date.withYear(2011);
+  ```
+  * 결과 : 2016-09-08
+  * 절대적, 상대적 방식으로 날짜를 조정 가능
+    * 각 메서드의 결과로 새로운 LocalDate 객체가 생성되므로 한 행에 여러 날짜 조정 메서드를 연결할 수 있음
+    * 마지막 행은 변수에 할당하지 않았으므로 결과적으로 아무 일도 일어나지 않음
+
+* TemporalAdjuster 인터페이스를 구현하는 NextWorkingDay 클래스 구현하기
+  * 이 클래스는 날짜를 하루씩 다음날로 바꾸는데 이때 주말은 건너뜀
+  * 다음 코드를 실행하면 다음날로 이동함
+    ``` date = date.with(new NextWorkingDay()); ```
+  * 만일 이동 날짜가 평일이 아니라면, 즉 토요일, 일요일(주말)이라면 월요일로 이동함
+  * 구현 코드
+    ```
+    @Override
+    public Temporal adjustInto(Temporal temporal) {
+        // 현재 날짜 읽기
+        DayOfWeek dow = DayOfWeek.of(temporal.get(ChronoField.DAY_OF_WEEK));
+
+        // 일반적으로 하루 추가
+        int dayToAdd = 1;
+        if (dow == DayOfWeek.FRIDAY) { // 오늘이 금요일이면 3일 추가
+            dayToAdd = 3;
+        } else if (dow == DayOfWeek.SATURDAY) { // 오늘이 토요일이면 2일 추가
+            dayToAdd = 2;
+        }
+
+        // 적정한 날 수만큼 추가된 날짜를 반환
+        return temporal.plus(dayToAdd, ChronoUnit.DAYS);
+    }
+    ```
+    * 람다 구현
+      ```
+      LocalDate date = LocalDate.now();
+      date = date.with(temporal -> {
+          DayOfWeek dow = DayOfWeek.of(temporal.get(ChronoField.DAY_OF_WEEK));
+  
+          int dayToAdd = 1;
+          if (dow == DayOfWeek.FRIDAY) {
+              dayToAdd = 3;
+          } else if (dow == DayOfWeek.SATURDAY) {
+              dayToAdd = 2;
+          }
+  
+          return temporal.plus(dayToAdd, ChronoUnit.DAYS);
+      });
+      ```
+    * TemporalAdjuster를 람다로 정의
+      * UnaryOperator<LocalDate>를 인수로 받는 TemporalAdjusters클래스의 정적 팩토리 메서드 ofDateAdjuster를 사용
+      ```
+      TemporalAdjuster nextWorkingDay = TemporalAdjusters.ofDateAdjuster(
+              temporal -> {
+                  DayOfWeek dow = DayOfWeek.of(temporal.get(ChronoField.DAY_OF_WEEK));
+  
+                  int dayToAdd = 1;
+                  if (dow == DayOfWeek.FRIDAY) {
+                      dayToAdd = 3;
+                  } else if (dow == DayOfWeek.SATURDAY) {
+                      dayToAdd = 2;
+                  }
+  
+                  return temporal.plus(dayToAdd, ChronoUnit.DAYS);
+              }
+      );
+  
+      date.with(nextWorkingDay);
+      ```
+---
