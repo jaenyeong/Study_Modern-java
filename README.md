@@ -6210,3 +6210,554 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
       date.with(nextWorkingDay);
       ```
 ---
+
+## chapter 13 - 디폴트 메서드
+* 인터페이스를 구현하는 클래스는 인터페이스에서 정의하는 모든 메서드 구현을 제공하거나 아니면 슈퍼클래스의 구현을 상속 받아야 함
+  * 라이브러리 설계자 입장에서 새로운 메서드를 추가하는 등 인터페이스를 바꾸고 싶을 때는 문제가 발생함
+  * 인터페이스를 바꾸면 이전에 해당 인터페이스를 구현했던 모든 클래스의 구현도 고쳐야 하기 때문
+* 자바 8에서는 이 문제를 해결하는 새로운 기능 제공
+  * 기본 구현을 포함하는 인터페이스를 정의하는 두 가지 방법을 제공함
+    * 첫 번째는 인터페이스 내부의 정적 메서드(static method)를 사용하는 것
+    * 두 번째는 인터페이스의 기본 구현을 제공할 수 있도록 디폴트 메서드(default method) 기능을 사용하는 것
+      * 자바 8에서는 메서드 구현을 포함하는 인터페이스를 정의할 수 있음
+      * 결과적으로 기존 인터페이스를 구현하는 클래스는 자동으로 인터페이스에 추가된 새로운 메서드의 디폴트 메서드를 상속받게 됨
+      * 기존 코드의 구현을 바꾸도록 강요하지 않으면서도 인터페이스를 바꿀 수 있음
+      * 이와 같은 방식으로 추가된 두 가지 예시 (List 인터페이스의 sort, Collection 인터페이스의 stream)
+        * sort 구현 코드
+          ```
+          default void sort(Comparator<? super E> c) {
+              Collections.sort(this, c);
+          }
+          
+          List<Integer> numbers = Arrays.asList(3, 5, 1, 2, 6);
+          numbers.sort(Comparator.naturalOrder()); // sort는 List 인터페이스의 디폴트 메서드
+          ```
+          * default라는 새로운 키워드는 해당 메서드가 디폴트 메서드임을 가리킴
+          * sort 메서드는 Collections.sort 메서드를 호출
+          * 위 코드에서 Comparator.naturalOrder()라는 새로운 메서드 등장
+            * naturalOrder()는 자연순서(표준 알파벳 순서)로 요소를 정렬할 수 있도록  
+              Comparator 객체를 반환하는 Comparator 인터페이스의 추가된 새로운 정적 메서드
+        * stream 구현 코드
+          ```
+          default Stream<E> stream() {
+              return StreamSupport.stream(spliterator(), false);
+          }
+          ```
+          * stream 메서드는 StreamSupport.stream 메서드 호출
+          * Collection 인터페이스의 다른 디폴트 메서드 spliterator도 호출
+    * 디폴트 메서드는 주로 라이브러리 설계자들이 사용함
+      * 디폴트 메서드를 이용하면 자바 API의 호환성을 유지하면서 라이브러리를 바꿀 수 있음
+    * 디폴트 메서드가 없던 시절에는 인터페이스에 메서드를 추가하면서 여러 문제가 발생했음
+      * 인터페이스에 새로 추가된 메서드를 구현하도록 인터페이스를 구현한 기존 클래스를 고쳐야 했기 때문
+      * 본인이 직접 인터페이스와 이를 구현하는 클래스를 관리할 수 있는 상황이라면 문제 없이 해결할 수 있음
+        * 하지만 인터페이스를 대중에 공개했을 때는 상황이 달라짐
+      * 그래서 디폴트 메서드가 탄생
+      * 디폴트 메서드를 이용하면 인터페이스의 기본 구현을 그대로 상속하므로 인터페이스에 자유롭게 새로운 메서드를 추가 가능
+    * 기존 구현을 고치지 않고도 인터페이스를 바꿀 수 있으므로 디폴트 메서드를 이해하는 것이 중요함
+      * 디폴트 메서드는 다중 상속 동작이라는 유연성을 제공, 프로그램 구성에 도움을 줌
+
+* 정적 메서드와 인터페이스
+  * 자바에서는 인터페이스 그리고 인터페이스의 인스턴스를 활용할 수 있는 다양한 정적 메서드를 정의하는 유틸리티 클래스를 활용함
+    * 예를 들어 Collections는 Collection 객체를 활용할 수 있는 유틸리티 클래스
+    * 자바 8에서는 인터페이스의 직접 정적 메서드를 선언할 수 있으므로 유틸리티 클래스를 없애고 직접 인터페이스 내부에 정적 메서드를 구현할 수 있음
+    * 그럼에도 불구하고 과거 버전과의 호환성을 유지할 수 있도록 자바 API에는 유틸리티 클래스가 남아 있음
+
+### 변화하는 API
+* 자바 그리기 라이브러리 설계자라고 가정
+  * setHeight, setWidth, getHeight, getWidth, setAbsoluteSize 등의 메서드를 정의하는 Resizable 인터페이스
+  * Rectangle, Square 처럼 Resizable을 구현하는 클래스도 제공
+  * 일부 사용자는 직접 Resizable 인터페이스를 구현하는 Ellipse라는 클래스를 구현
+  * Resizable에 몇 가지 기능 부족
+    * Resizable 인터페이스에 크기 조절 인수로 모양의 크기를 조절하는 setRelativeSize라는 메서드
+      * Resizable에 위 메서드를 추가하고 Rectangle, Square를 수정
+    * 하지만 사용자가 만든 클래스를 변경할 수 없음
+
+* API 버전 1
+  * API
+    ```
+    public interface Resizable extends Drawable {
+  	
+        int getWidth();
+        int getHeight();
+        void setWidth(int width);
+        void setHeight(int height);
+        void setAbsoluteSize(int width, int height);
+    }
+    ```
+  * 사용자가 만든 클래스
+    ```
+    public class Game {
+    
+    	public static void main(String[] args) {
+    		// 크기를 조절할 수 있는 모양 리스트
+    		List<Resizable> resizeableShapes = Arrays.asList(new Square(), new Rectangle(), new Ellipse());
+    		Utils.paint(resizeableShapes);
+    	}
+    }
+    
+    public class Utils {
+    
+    	public static void paint(List<Resizable> l) {
+    		l.forEach(r -> {
+    			r.setAbsoluteSize(42, 42);
+    			r.draw();
+    		});
+    	}
+    }
+    ```
+
+* API 버전 2
+  * Resizable을 구현하는 Rectangle, Square 구현 개선
+    ```
+    public interface Resizable extends Drawable {
+    
+    	int getWidth();
+    	int getHeight();
+    	void setWidth(int width);
+    	void setHeight(int height);
+    	void setAbsoluteSize(int width, int height);
+    
+    	// API 버전 2에 추가된 새로운 메서드
+    	void setRelativeSize(int widthFactor, int heightFactor);
+    }
+    ```
+  * 사용자가 겪는 문제
+    * Resizable 고치면 발생하는 문제
+      * Resizable을 구현하는 모든 클래스는 setRelativeSize 메서드를 구현해야 함
+      * 인터페이스에 새로운 메서드를 추가하면 바이너리 호환성은 유지됨
+        * 바이너리 호환성이란 새로 추가된 메서드를 호출하지만 않으면 새로운 메서드 구현이 없어도 기존 클래스 파일 구현이 잘 동작한다는 의미
+      * 하지만 언젠가 누군가가 Resizable을 인수로 받는 Utils.paint()에서 setRelativeSize를 사용하도록 코드를 변경할 수 있음
+        * 이때 Ellipse 객체가 인수로 전달되면 Ellipse는 setRelativeSize 메서드를 정의하지 않았으므로 런타임에 다음과 같은 에러 발생
+          ```
+          Exception in thread "main" java.lang.AbstractMethodError
+          ``` 
+        * 두 번째 사용자가 Ellipse를 포함하는 전체 앱을 재빌드할 때 다음과 같은 컴파일 에러가 발생
+          ```
+          Error:(5, 8) java: com.jaenyeong.chapter_13.ExampleAPI.Customer.Ellipse is not abstract and  
+          does not override abstract method setRelativeSize(int,int) in  
+          com.jaenyeong.chapter_13.ExampleAPI.Developer.Resizable
+          ```
+    * 공개된 API를 고치면 기존 버전과의 호환성 문제가 발생함
+      * 이런 이유로 공식 자바 컬렉션 API 같은 기존 API는 고치기 어려움
+      * 바꿀 수 있는 대안이 몇 가지 있지만 완벽한 해결책은 될 수 없음
+      * 예를 들어 자신만의 API를 별도로 만든 다음에 예전 버전과 새로운 버전을 직접 관리하는 방법
+        * 둘째, 사용자는 같은 코드에 예전 버전과 새로운 버전 두 가지 라이브러리를 모두 사용해야 하는 상황 발생
+        * 결국 프로젝트에서 로딩해야 할 클래스 파일이 많아지면서 메모리 사용과 로딩 시간 문제가 발생
+    * 디폴트 메서드로 이 모든 문제를 해결
+      * 디폴트 메서드를 이용해서 API를 바꾸면 새롭에 바뀐 인터페이스에 자동으로 기본 구현을 제공하므로 기존 코드를 고치지 않아도 됨
+
+* 바이너리 호환성, 소스 호환성, 동작 호환성
+  * 자바 프로그램을 바꾸는 문제는 크게 바이너리 호환성, 소스 호환성, 동작 호환성 세 가지로 분류 가능
+    * http://goo.gl/JNn4vm
+      * https://blogs.oracle.com/darcy/kinds-of-compatibility:-source,-binary,-and-behavioral
+  * 인터페이스에 메서드를 추가했을 때는 바이너리 호환성을 유지하지만 인터페이스를 구현하는 클래스를 재컴파일하면 에러가 발생함
+    * 다양한 호환성이 있다는 사실을 인지해야 함
+  * 바이너리 호환성
+    * 뭔가를 바꾼 이후에도 에러 없이 기존 바이너리가 실행될 수 있는 상황을 바이너리 호환성이라고 함
+      * 바이너리 실행에는 인증(verification), 준비(preparation), 해석(resolution) 등의 과정이 포함됨
+      * 예를 들어 인터페이스에 메서드를 추가했을 때 추가된 메서드를 호출하지 않는 한 문제가 일어나지 않는데 이를 바이너리 호환성이라고 함
+  * 소스 호환성
+    * 코드를 고쳐도 기존 프로그램을 성공적으로 재컴파일할 수 있음을 의미함
+      * 예를 들어 인터페이스에 메서드를 추가하면 소스 호환성이 아님. 추가한 메서드를 구현하도록 클래스를 고쳐야 하기 때문
+  * 동작 호환성
+    * 코드를 바꾼 다음에도 같은 입력값이 주어지면 프로그램이 같은 동작을 실행한다는 의미
+      * 예를 들어 인터페이스에 메서드를 추가하더라도 프로그램에서 추가된 메서드를 호출할 일은  
+        없으므로(우연히 구현 클래스가 이를 오버라이드 했을 수도 있음) 동작 호환성은 유지됨
+          
+### 디폴트 메서드란 무엇인가?
+* 인터페이스는 자신을 구현하는 클래스에서 메서드를 구현하지 않을 수 있는 새로운 메서드 시그니처를 제공함
+* 인터페이스를 구현하는 클래스에서 구현하지 않은 메서드는 인터페이스 자체에서 기본으로 제공함
+  * 그래서 이를 디폴트 메서드라고 부름
+* 디폴트 메서드는 default라는 키워드로 시작함
+  * 다른 클래스에 선언된 메서드처럼 메서드 바디를 포함함
+    * 예를 들어 Sized 인터페이스를 정의
+      * 추상 메서드 size와 디폴트 메서드 isEmpty를 포함함
+        ```
+        public interface Sized {
+        	int size();
+        	default boolean isEmpty() {
+        		return size() == 0;
+        	}
+        }
+        ```
+      * Sized 인터페이스를 구현하는 모든 클래스는 isEmpty의 구현도 상속받음
+        * 즉, 인터페이스에 디폴트 메서드를 추가하면 소스 호환성이 유지됨
+* 자바 그리기 라이브러리 예제
+  * 디폴트 메서드를 이용해 setRelativeSize의 디폴트 구현을 제공한다면 호환성을 유지하면서 라이브러리를 고칠 수 있음
+    * 라이브러리 사용자는 Resizable 인터페이스를 구현하는 클래스를 고칠 필요가 없음
+      ```
+      default void setRelativeSize(int wFactor, int hFactor) {
+          setAbsoluteSize(getWidth() / wFactor, getHeight() / hFactor);
+      }
+      ```
+  * 자바 8 API에서 디폴트 메서드가 상당히 많이 활용됨
+    * 예를 들어 Collection 인터페이스의 stream 메서드처럼 부지불식간에 많은 디폴트 메서드를 사용했음
+      * List 인터페이스의 sort 메서드
+      * Prdicate, Function, Comparator 등 많은 함수형 인터페이스도 Predicate.and, Function.andThen 같은 디폴트 메서드 포함
+        * 함수형 인터페이스는 오직 하나의 추상 메서드를 포함함
+          * 디폴트 메서드는 추상 메서드에 해당하지 않음
+
+* 추상 클래스와 자바 8 인터페이스
+  * 추상 클래스와 인터페이스는 둘 다 추상 메서드와 바디를 포함하는 메서드를 정의할 수 있음
+  * 차이점
+    * 클래스는 하나의 추상 클래스만 상속받을 수 있지만 인터페이스는 여러 개를 구현할 수 있음
+    * 추상 클래스는 인스턴스 변수(필드)로 공통 상태를 가질 수 있음
+      * 인터페이스는 인스턴스 변수를 가질 수 없음
+
+### 디폴트 메서드 활용 패턴
+* 디폴트 메서드를 이용하는 두 가지 방식
+  * 선택형 메서드(optional method)
+  * 동작 다중 상속(multiple inheritance of behavior)
+
+* 선택형 메서드
+  * 인터페이스를 구현하는 클래스에서 메서드의 내용이 비어 있는 상황
+    * 예를 들어 Iterator 인터페이스
+      * hasNext, next, remove 메서드 정의
+      * 사용자들이 remove를 잘 사용하지 않으므로 자바 8 이전에는 rmove 기능을 무시함
+        * 결과적으로 Iterator를 구현하는 많은 클래스에서는 remove에 빈 구현을 제공함
+      * 디폴트 메서드 이용시 remove 같은 메서드에 기본 구형을 제공할 수 있음
+        * 인터페이스를 구현하는 클래스에서 빈 구현을 제공할 필요가 없음
+          ```
+          interface Iterator<T> {
+              boolean haxNext();
+              T next();
+              default void remove() {
+                  throw new UnsupportedOperationExcpetion();
+              }
+          }
+          ```
+
+* 동작 다중 상속
+  * 디폴트 메서드 사용시 기존에는 불가능했던 동작 다중 상속 기능도 구현할 수 있음
+    * 클래스는 다중 상속을 이용해서 기존 코드를 재사용할 수 있음
+  * 자바 API에 정의된 ArrayList 클래스
+    ```
+    public class ArrayLIst<E> extends AbstractList<E>               // 한 개의 클래스 상속
+        implements List<E>, RandomAccess, Cloneable, Serializable { // 네 개의 인터페이스 구현
+    }
+    ```
+  * 다중 상속 형식
+    * ArrayList는 한 개의 클래스를 상속, 여섯 개의 인터페이스를 구현함
+      * ArrayList는 AbstractList, List, RandomAccess, Cloneable, Serializable, Iterable, Collection의 서브 형식(subtype)
+      * 따라서 디폴트 메서드를 사용하지 않아도 다중 상속을 활용할 수 있음
+    * 자바 8에서는 인터페이스가 구현을 포함하므로 클래스는 여러 인터페이스에서 동작을 상속받을 수 있음
+  * 기능이 중복되지 않는 최소의 인터페이스
+    * 게임에 다양한 특성을 갖는 여러 모양을 정의한다고 가정
+      * 어떤 모양은 회전할 수 없지만 크기는 조절할 수 있음
+      * setRotationAngle, getRotationAngle 두 개의 추상 메서드를 포함하는 Rotatable 인터페이스 정의
+        * 디폴트 메서드 rotateBy도 구현
+        ```
+        public interface Rotatable {
+        
+        	void setRotationAngle(int angleInDegrees);
+        	int getRotationAngle();
+        	default void rotateBy(int angleInDegrees) {
+        		setRotationAngle((getRotationAngle() + angleInDegrees) % 360);
+        	}
+        }
+        ```
+        * 위 인터페이스는 구현해야 할 다른 메서드에 따라 뼈대 알고리즘이 결정되는 템플릿 디자인 패턴과 비슷해 보임
+        * Rotatable을 구현하는 모든 클래스는 setRotationAngle과 getRotationAngle의 구현을 제공해야 함
+          * 하지만 rotateBy는 기본 구현이 제공되므로 따로 구현을 제공하지 않아도 됨
+      * Moveable, Resizable을 정의. 두 인터페이스 모두 디폴트 구현을 제공
+        ```
+        public interface Moveable {
+        	int getX();
+        	int getY();
+        	void setX(int x);
+        	void setY(int y);
+        
+        	default void moveHorizontally(int distance) {
+        		setX(getX() + distance);
+        	}
+        
+        	default void moveVertically(int distance) {
+        		setY(getY() + distance);
+        	}
+        }
+        
+        public interface Resizable {
+        
+        	int getWidth();
+        	int getHeight();
+        	void setWidth(int width);
+        	void setHeight(int height);
+        	void setAbsoluteSize(int width, int height);
+        
+        	default void setRelativeSize(int wFactor, int hFactor) {
+        		setAbsoluteSize(getWidth() / wFactor, getHeight() / hFactor);
+        	}
+        }
+        ```
+  * 인터페이스 조합
+    * 이 인터페이스들을 조합, 게임에 필요한 다양한 클래스를 구현할 수 있음
+      ```
+      public class Monster implements Rotatable, Moveable, Resizable {
+      	  // 모든 추상메서드의 구현은 제공해야 하지만 디폴트 메서드의 구현은 제공할 필요가 없음
+      }
+      ```
+      * Monster 클래스는 Rotatable, Moveable, Resizable 인터페이스의 디폴트 메서드를 자동으로 상속받음
+        * 즉, rotateBy, moveHorizontally, moveVertically, setRelativeSize 구현을 상속받음
+        * 상속받은 다양한 메서드를 직접 호출
+          ```
+          Monster m = new Monster(); // 생성자는 내부적으로 좌표, 높이, 너비, 기본 각도를 설정함
+          m.rotateBy(180); // Rotatable의 rotateBy 호출
+          m.moveVertically(10); // Moveable의 moveVertically 호출
+          ```
+      * Sun 클래스 정의
+        * 움직일 수 있으며 회전할 수 있지만, 크기는 조절할 수 없는 클래스
+          ```
+          public class Sun implements Moveable, Rotatable {
+              // 모든 추상메서드의 구현은 제공해야 하지만 디폴트 메서드의 구현은 제공할 필요가 없음
+          }
+          ```
+    * 인터페이스에 디폴트 구현을 포함시키면 생기는 또 다른 장점
+      * 예를 들어 moveVertically의 구현을 더 효율적으로 고친다고 가정
+        * 디폴트 메서드 덕분에 Moveable 인터페이스를 직접 고칠 수 있음
+          * 따라서 Moveable을 구현하는 모든 클래스도 자동으로 변경한 코드를 상속 받음 (물론 구현 클래스에서 메서드를 정의하지 않은 상황에 한해서)
+
+* 옳지 못한 상속
+  * 상속으로 코드 재사용 문제를 모두 해결할 수 없음
+    * 예를 들어 한 개의 메서드를 사용하려고 100개의 메서드와 필드가 정의되어 있는 클래스를 상속받는 것은 좋지 않음
+      * 이럴 땐 델리게이션(delegation), 즉 멤버 변수를 이용하여 클래스에서 필요한 메서드를 직접 호출하는 메서드를 작성하는 것이 좋음
+    * final로 선언된 클래스
+      * 다른 클래스가 이 클래스를 상속받지 못하게 함으로써 원래 동작이 바뀌지 않길 원함
+      * 예를 들어 String 클래스
+        * String의 핵심 기능을 바꾸지 못하도록 제한할 수 있음
+
+### 해석 규칙
+* 자바의 클래스는 하나의 부모 클래스만 상속받을 수 있지만 인터페이스는 여러 개를 동시에 구현할 수 있음
+* 자바 8에 디폴트 메서드가 추가되었으므로 같은 시그니처를 갖는 디폴트 메서드를 상속받는 상황이 발생할 수 있음
+* 문제를 보여주기 위한 예제 코드
+  ```
+  public interface A {
+  
+      default void hello() {
+          System.out.println("Hello from A");
+      }
+  }
+  public interface B extends A {
+  
+      default void hello() {
+          System.out.println("Hello from B");
+      }
+  }
+  public class C implements B, A {
+  
+      public static void main(String[] args) {
+          new C().hello();
+      }
+  }
+  ```
+
+* 알아야 할 세 가지 해결 규칙
+  * 다른 클래스나 인터페이스로부터 같은 시그니처를 갖는 메서드를 상속받을 때는 세 가지 규칙을 따라야 함
+    * [1] 클래스가 항상 이김
+      * 클래스나 슈퍼클래스에서 정의한 메서드가 디폴트 메서드보다 우선권을 가짐
+    * [2] 1번 규칙 이 외 상황에서는 서브인터페이스가 이김
+      * 상속관계를 갖는 인터페이스에서 같은 시그니처를 갖는 메서드를 정의할 때는 서브인터페이스가 이김
+      * 즉 예제와 같이 B가 A를 상속받는다면 B가 A를 이김
+    * [3] 여전히 디폴트 메서드의 우선순위가 결정되지 않았다면 여러 인터페이스를 상속받는 클래스가 명시적으로 디폴트 메서드를 오버라이도하고 호출해야 함
+
+* 디폴트 메서드를 제공하는 서브인터페이스가 이긴다
+  * 예제와 같이 B가 A를 상속받는 경우 (new C().hello() 메서드 호출시) 
+    * 컴파일러는 B의 hello를 선택함
+  * A를 구현하는 D 클래스와 A, B 인터페이스를 함께 구현하는 경우 (new C().hello 메서드 호출시)
+    ```
+    public class D implements A {
+    }
+    
+    public class C extends D implements B, A {
+    
+    	public static void main(String[] args) {
+            // 'Hello from B'를 출력함
+    		new C().hello();
+    	}
+    }
+    ```
+    * 컴파일러는 B의 hello를 선택함
+      * 1번 규칙은 클래스의 메서드 구현이 이긴다고 설명함
+        * D는 hello를 오버라이드하지 않았고 단순히 인터페이스 A를 구현함
+        * 따라서 D는 인터페이스 A의 디폴트 메서드 구현을 상속받음
+      * 2번 규칙은 클래스나 슈퍼클래스에서 메서드 정의가 없을 때는 디폴트 메서드를 정의하는 서브인터페이스가 선택됨
+        * 따라서 컴파일러는 인터페이스 A의 hello나 인터페이스 B의 hello 둘 중 하나를 선택해야 함
+      * 해당 예제에서는 B가 A를 상속받는 관계이므로 이번에도 'Hello from B'가 출력됨
+
+* 충돌 그리고 명시적인 문제 해결
+  * B가 A를 상속받지 않은 상황
+    ```
+    public interface A {
+    
+    	default void hello() {
+    		System.out.println("Hello from A");
+    	}
+    }
+    public interface B {
+    
+    	default void hello() {
+    		System.out.println("Hello from B");
+    	}
+    }
+    public class C implements B, A {
+    }
+    ```
+    * 위 코드에서는 인터페이스 간 상속관계가 없으므로 2번 규칙을 적용할 수 없음
+      * 그러므로 A와 B의 hello 메서드를 구별할 기준이 없음
+      * 따라서 자바 컴파일러는 어떤 메서드를 호출해야 할지 알 수 없으므로 에러 발생
+        * ``` Error: class C inherits unrelated defaults for hello() from types B and A. ```
+
+* 충돌 해결
+  * 클래스와 메서드 관계로 디폴트 메서드를 선택할 수 없는 상황에서는 선택할 수 있는 방법이 없음
+  * 개발자가 직접 C 클래스에 사용하려는 메서드를 명시적으로 선택해야 함
+  * 즉 C 클래스에서 hello 메서드를 오버라이드 한 다음에 호출하려는 메서드를 명시적으로 선택해야 함
+  * 자바 8에서는 X.super.m(...) 형태의 새로운 문법을 제공함
+    * 여기서 X는 호출하려는 메서드 m의 슈퍼인터페이스
+    * 예를 들어 C에서 B의 인터페이스를 호출할 수 있음
+      ```
+      public class C implements B, A {
+
+          // hello 메서드 직접 명시
+          public void hello() {
+              F.super.hello();
+          }
+      }
+      ```
+
+* 다이아몬드 문제
+  * 시나리오
+    ```
+    public interface A {
+    
+    	default void hello() {
+    		System.out.println("Hello from A");
+    	}
+    }
+    
+    public interface B extends A {
+    }
+    
+    public interface C extends A {
+    }
+    
+    public class D implements B, C {
+    
+    	public static void main(String[] args) {
+    		new D().hello();
+    	}
+    }
+    ```
+    * UML 다이어그램이 다이아몬드 모양을 닮아 다이아몬드 문제(diamond problem)라고 부름
+    * D 클래스는 'Hello from A' 출력
+    * B에도 같은 시그니처의 디폴트 메서드 hello가 있다고 가정
+      * B는 A를 상속 받으므로 B가 선택됨
+    * B와 C 모두 디폴트 메서드가 hello를 정의한다고 가정
+      * 충돌 발생 둘 중 하나의 메서드를 명시적으로 호출(재정의) 해야함
+    * C 인터페이스의 추상 메서드 hello(디폴트 메서드 아님)을 정의한다고 가정 (A, B에는 아무 메서드드 정의하지 않는다?)
+      * C는 A를 상속받으므로 C의 추상 메서드 hello가 디폴트 메서드 hello보다 우선권을 가지기 때문에 컴파일 에러가 발생
+        * 명시적으로 선언(메서드 선택)하여 에러 해결해야 함
+  * 디폴트 메서드 세 가지 규칙 (위와 동일)
+    * [1] 클래스가 항상 이김
+      * 클래스나 슈퍼클래스에서 정의한 메서드가 디폴트 메서드보다 우선권을 가짐
+    * [2] 1번 규칙 이 외 상황에서는 서브인터페이스가 이김
+      * 상속관계를 갖는 인터페이스에서 같은 시그니처를 갖는 메서드를 정의할 때는 서브인터페이스가 이김
+      * 즉 예제와 같이 B가 A를 상속받는다면 B가 A를 이김
+    * [3] 여전히 디폴트 메서드의 우선순위가 결정되지 않았다면 여러 인터페이스를 상속받는 클래스가 명시적으로 디폴트 메서드를 오버라이도하고 호출해야 함
+
+* C++ 다이아몬드 문제
+  * C++ 다이아몬드 문제는 이보다 더 복잡함
+  * C++은 클래스의 다중 상속을 지원함
+  * 클래스 D가 클래스 B와 C를 상속받고 B와 C는 클래스 A를 상속받는다고 가정
+    * 클래스 D는 B, C 객체의 복사본에 접근할 수 있음
+    * 결과적으로 A의 메서드를 사용할 때 B의 메서드인지 C의 메서드인지 명시적으로 해결해야 함
+    * 또한 클래스는 상태를 가질 수 있으므로 B의 멤버 변수를 고쳐도 C 객체의 복사본에 반영되지 않음
+
+### 정리
+* 자바 8의 인터페이스에는 구현 코드를 포함하는 디폴트 메서드, 정적 메서드를 정의할 수 있음
+* 디폴트 메서드의 정의는 default 키워드로 시작, 일반 클래스 메서드처럼 바디를 가짐
+* 공개된 인터페이스에 추상 메서드를 추가하면 소스 호환성이 깨짐
+* 디폴트 메서드 덕분에 라이브러리 설계자가 API를 바꿔도 기존 버전과 호환성을 유지할 수 있음
+* 선택형 메서드와 동작 다중 상속에도 디폴트 메서드를 사용할 수 있음
+* 클래스가 같은 시그니처를 갖는 여러 디폴트 메서드를 상속하면서 생기는 충돌 문제를 해결하는 규칙이 있음
+* 클래스나 슈퍼클래스에 정의된 메서드가 다른 디폴트 메서드 정의보다 우선함
+  * 이 외 상황에서는 서브인터페이스에서 제공하는 디폴트 메서드가 선택됨
+* 두 메서드의 시그니처가 같고 상속관계로도 충돌 문제를 해결할 수 없을 때는  
+  디폴트 메서드를 사용하는 클래스에서 메서드를 오버라이드해서 어떤 디폴트 메서드를 호출할지 명시적으로 결정해야 함
+
+### [quiz]
+* ArrayList, TreeSet, LinkedList 및 다른 모든 컬렉션에서 사용할 수 있는 removeIf 메서드 추가
+  * removeIf 메서드는 주어진 프레디케이트와 일치하는 모든 요소를 컬렉션에서 제거하는 기능
+  * 좋지 않은 방법
+    * 컬레션 API의 모든 구현 클래스에 removeIf를 복사, 붙여넣기
+  * 가장 적절하게 추가할 수 있는 방법
+    * 모든 컬렉션 클래스는 java.util.Collection 인터페이스를 구현
+    * Collection 인터페이스의 디폴트 메서드를 추가함으로써 소스 호환성 유지할 수 있음
+    ```
+    default <E> boolean removeIf(Predicate<? super E> filter) {
+        boolean removed = false;
+        Iterator<E> each = iterator();
+        while (each.hasNext()) {
+            if (filter.test(each.next())) {
+                each.remove();
+                removed = true;
+            }
+        }
+
+        return removed;
+    }
+    ```
+
+* 위 해석규칙을 예시에서 D가 명시적으로 A의 hello 메서드를 오버라이드 할 경우 프로그램 실행 결과는?
+  ```
+  public class D implements A {
+
+      public void hello() {
+          System.out.println("Hello from D");
+      }
+  }
+  
+  public class C extends D implements B, A {
+  
+  	public static void main(String[] args) {
+  		new C().hello();
+  	}
+  }
+  ```
+  * 결과
+    * 'Hello from D'가 출력됨
+    * 규칙 1에 의해 슈퍼클래스의 메서드 정의가 우선권을 갖기 때문
+  * D가 아래와 같이 구현되었을 경우
+    ```
+    public abstract class D implements A {
+    
+        public abstract void hello();
+    }
+    ```
+    * 결과
+      * 그러면 A 인터페이스에서 디폴트 메서드를 제공함에도 불구하고 C 클래스는 hello를 구현해야 함
+
+* 다음 코드의 출력 결과는?
+  ```
+  public interface A {
+  
+      default Number getNumber() {
+          return 10;
+      }
+  }
+  
+  public interface B {
+  
+      default Integer getNumber() {
+          return 42;
+      }
+  }
+  
+  public class C implements B, A {
+  
+      public static void main(String[] args) {
+          System.out.println(new C().getNumber());
+      }
+  }
+  ```
+  * 결과
+    * C 클래스에서 A와 B 메서드를 구분할 수 없기 때문에 컴파일 에러 발생
+---
