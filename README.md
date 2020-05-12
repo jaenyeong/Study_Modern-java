@@ -634,7 +634,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
         .distinct()
         .collect(toList());
     ```
-  * 결국 스트림 리스트 List<Stream<String>>가 만들어지므로 문제가 해결되지 않음
+  * 결국 스트림 리스트 List<Stream\<String>>가 만들어지므로 문제가 해결되지 않음
   * 문제를 해결하려면 먼저 각 단어를 개별 문자열로 이루어진 배열로 만든 다음, 각 배열을 별도의 스트림으로 만들어야 함
   
 * flatMap 사용
@@ -705,10 +705,10 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
       ```
 
 * Optional이란
-  * Optional<T> 클래스는 값의 존재나 부재 여부를 표현하는 컨테이너 클래스
+  * Optional\<T> 클래스는 값의 존재나 부재 여부를 표현하는 컨테이너 클래스
   * 위 예제에서 findAny 메서드는 아무 요소도 반환하지 않을 수 있음
   * isPresent()는 Optional이 값을 포함하면 true, 값을 포함하지 않으면 false 반환
-  * ifPresent(Consumer<T> block)은 값이 있으면 주어진 블록을 실행함
+  * ifPresent(Consumer\<T> block)은 값이 있으면 주어진 블록을 실행함
     * Consumer 함수형 인터페이스는 T 형식의 인수를 받으며 void를 반환하는 람다를 전달할 수 있음
   * T get()은 값이 존재하면 값을 반환, 값이 없으면 NoSuchElementException을 일으킴
   * T orElse(T other)는 값이 있으면 값을 반환, 값이 없으면 기본값을 반환
@@ -763,7 +763,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
     int product = numbers.stream().reduce(1, (a, b) -> a * b);
     ```
   * 초깃값을 받지 않는 reduce 메서드
-    * 이 때 Optional<Integer> 반환 : 스트림에 아무 요소도 없을 수 있음
+    * 이 때 Optional\<Integer> 반환 : 스트림에 아무 요소도 없을 수 있음
     ```
     int sum = numbers.stream().reduce(0, (a, b) -> a + b);
     ```
@@ -919,7 +919,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
   * 특화 스트림은 오직 박싱과정에서 일어나는 효율성과 관련이 있고, 추가 기능을 제공하지는 않음
   * 숫자 스트림으로 매핑, 특화 스트림으로 변환하는 메서드
     * mapToInt
-      * mapToInt 메서드는 IntStream을 반환 (Stream<Integer>가 아님)
+      * mapToInt 메서드는 IntStream을 반환 (Stream\<Integer>가 아님)
       * IntStream은 max, min, average 등 다양한 유틸리티 메서드 제공
       ```
       int calories = menu.stream()
@@ -990,7 +990,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
             .boxed()
             .map(b -> new int[]{a, b, (int) Math.sqrt(a * a + b * b)});
     ```
-    * filter 연산 다음에 rangeClosed가 반환한 IntStream을 boxed를 이용해서 Stream<Integer>로 복원
+    * filter 연산 다음에 rangeClosed가 반환한 IntStream을 boxed를 이용해서 Stream\<Integer>로 복원
     * map은 스트림의 각 요소를 int 배열로 변환하기 때문
     * 여기서 Intstream의 map메서드는 스트림의 각 요소로 int가 반환될 것을 기대하지만 이는 우리가 원하는 연산이 아님
     * 개체값 스트림을 반환하는 IntStream의 mapToObj 메서드를 이용, 이 코드를 재구현
@@ -1130,7 +1130,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
   * generate 메서드
     * generate 메서드도 요구할 때 값을 계산하는 무한 스트림을 얻을 수 있음
     * 하지만 iterate와 달리 generate는 생산된 각 값을 연속적으로 계산하지 않음
-    * Supplier<T>를 인수로 받아 새로운 값을 생산
+    * Supplier\<T>를 인수로 받아 새로운 값을 생산
       ```
       Stream.generate(Math::random)
             .limit(5)
@@ -1141,7 +1141,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
       * 하지만 발행자에 꼭 상태가 없어야 하는 것은 아님
       * 병렬 코드에서는 발행자에 상태가 있으면 안전하지 않음
       * 상태를 갖는 발행자는 실제로 피해야 함
-    * IntStream의 generate 메서드는 Supplier<T> 대신에 IntSupplier를 인수로 받음
+    * IntStream의 generate 메서드는 Supplier\<T> 대신에 IntSupplier를 인수로 받음
       ```
       IntStream ones = IntStream.generate(() -> 1);
       ```
@@ -1259,7 +1259,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
     
 * 피보나치수열 집합
   * iterate 메서드를 이용, 피보나치수열의 집합을 20개 만들기
-  * UnaryOperator<T>를 인수로 받는 iterate 메서드를 이용
+  * UnaryOperator\<T>를 인수로 받는 iterate 메서드를 이용
     ```
     Stream.iterate(new int[]{0, 1}, ???)
         .limit(20)
@@ -1281,9 +1281,9 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
   * 스트림 파이프라인을 최적화하면서 계산 과정을 짧게 생략하기도 함
 * collect와 컬렉터로 구현할 수 있는 질의 예제
   * 통화별로 트랜잭션을 그룹화한 다음에 해당 통화로 일어난 모든 트랜잭션 합계를 계산하기
-  * 트랜잭션을 비싼 트랜잭션과 저럼한 트랜잭션 두 그룹으로 분류하기(Map<Boolean, List<Transaction>> 반환)
+  * 트랜잭션을 비싼 트랜잭션과 저럼한 트랜잭션 두 그룹으로 분류하기(Map<Boolean, List\<Transaction>> 반환)
   * 트랜잭션을 도시 등 다수준으로 그룹화하기
-    * 그리고 각 트랜잭션이 비싼지 저렴한지 구분하기(Map<String, Map<Boolean, List<Transaction>>> 반환)
+    * 그리고 각 트랜잭션이 비싼지 저렴한지 구분하기(Map<String, Map<Boolean, List\<Transaction>>> 반환)
 
 ### 컬렉터란 무엇인가?
 * 함수형 프로그래밍에서는 '무엇'을 원하는지 직접 명시할 수 있어서 어떤 방법으로 이를 얻을지는 신경 쓸 필요가 없음
@@ -1413,7 +1413,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
     ```
     int totalCalories = menu.stream().map(Dish::getCalories).reduce(Integer::sum).get();
     ```
-    * reduce(Integer::sum)도 빈 스트림과 관련한 널 문제를 피할 수 있도록 int가 아닌 Optional<Integer>를 반환
+    * reduce(Integer::sum)도 빈 스트림과 관련한 널 문제를 피할 수 있도록 int가 아닌 Optional\<Integer>를 반환
     * 그리고 get으로 Optional 객체 내부의 값을 추출함
       * 여기서 요리 스트림은 비어이지 않다는 사실을 알고 있으므로 get을 자유롭게 사용할 수 있음
       * 하지만 Optional의 값을 얻어올 때 orElse, orElseGet 등을 이용해 가져오는 것이 좋음
@@ -1681,15 +1681,15 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
 ### Collectors 클래스의 정적 팩토리 메서드
 * 모든 컬렉터는 Collector 인터페이스를 구현함
 * toList
-  * 반환 형식 : List<T>
+  * 반환 형식 : List\<T>
   * 사용 예제 : 스트림의 모든 항목을 리스트로 수집
   * 활용 예 : List<Dish> dishes = menuStream.collect(toList());
 * toSet
-  * 반환 형식 : Set<T>
+  * 반환 형식 : Set\<T>
   * 사용 예제 : 스트림의 모든 항목을 중복이 없는 집합으로 수집
   * 활용 예 : Set<Dish> dishes = menuStream.collect(toSet());
 * toCollection
-  * 반환 형식 : Collection<T>
+  * 반환 형식 : Collection\<T>
   * 사용 예제 : 스트림의 모든 항목을 발행자가 제공하는 컬렉션으로 수집
   * 활용 예 : Collection<Dish> dishes = menuStream.collect(toCollection(), ArrayList::new);
 * counting
@@ -1709,11 +1709,11 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
   * 사용 예제 : 스트림의 각 항목에 toString 메서드를 호출한 결과 문자열 연결
   * 활용 예 : String shortMenu = menuStream.map(Dish::getName).collect(joining(", "));
 * maxBy
-  * 반환 형식 : Optional<T>
+  * 반환 형식 : Optional\<T>
   * 사용 예제 : 주어진 비교자를 이용해서 스트림의 최댓값 요소를 Optional로 감싼 값을 반환. 스트림에 요소가 없을 때는 Optional.empty() 반환
   * 활용 예 : Optional<Dish> fattest = menuStream.collect(maxBy(comparingInt(Dish::getCalories)));
 * minBy
-  * 반환 형식 : Optional<T>
+  * 반환 형식 : Optional\<T>
   * 사용 예제 : 주어진 비교자를 이용해서 스트림의 최솟값 요소를 Optional로 감싼 값을 반환. 스트림에 요소가 없을 때는 Optional.empty() 반환
   * 활용 예 : Optional<Dish> lightest = menuStream.collect(minBy(comparingInt(Dish::getCalories)));
 * reducing
@@ -1725,11 +1725,11 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
   * 사용 예제 : 다른 컬렉터를 감싸고 그 결과에 반환 함수 적용
   * 활용 예 : int howManyDishes = menuStream.collect(collectingAndThen(toList(), List::size));
 * groupingBy
-  * 반환 형식 : Map<K, List<T>>
+  * 반환 형식 : Map<K, List\<T>>
   * 사용 예제 : 하나의 프로퍼티값을 기준으로 스트림의 항목을 그룹화하며 기준 프로퍼티값을 결과 맵의 키로 사용
   * 활용 예 : Map<Dish.Type, List<Dish>> dishesByType = menuStream.collect(groupingBy(Dish::getType));
 * partitionBy
-  * 반환 형식 : Map<Boolean, List<T>>
+  * 반환 형식 : Map<Boolean, List\<T>>
   * 사용 예제 : 하나의 프로퍼티값을 기준으로 스트림의 항목을 그룹화하며 기준 프로퍼티값을 결과 맵의 키로 사용
   * 활용 예 : Map<Boolean, List<Dish>> vegetarianDishes = menuStream.collect(partitioningBy(Dish::isVegetarian));
     
@@ -1750,7 +1750,7 @@ In Action 전문가를 위한 자바 8,9,10 기법 가이드(라울-게이브리
     * T는 수집될 스트림 항목의 제네릭 형식
     * A는 누적자, 즉 수집 과정에서 중간 결과를 누적하는 객체 형식
     * R은 수집 연산 결과 객체의 형식 (항상 그런 것은 아니지만 대개 컬렉션 형식)
-  * 예를 들어 Stream<T>의 모든 요소를 List<T>로 수집하는 toListCollector<T>라는 클래스를 구현할 수 있음
+  * 예를 들어 Stream\<T>의 모든 요소를 List\<T>로 수집하는 toListCollector\<T>라는 클래스를 구현할 수 있음
     ``` public class ToListCollector<T> implements Collector<T, List<T>, List<T>> ```
 
 * Collector 인터페이스 메서드
@@ -1945,8 +1945,8 @@ public class ToListCollector<T> implements Collector<T, List<T>, List<T>> {
   * Collector 인터페이스 정의를 참고해서 클래스 시그니처 만들기
     ``` public interface Collector<T, A, R> ```
     * 위 코드에서 T는 스트림의 형식, A는 중간 결과를 누적하는 객체 형식, R은 collect 연산의 최종 결과 형식
-  * 정수로 이루어진 스트림에서 누적자와 최종 결과의 형식이 Map<Boolean, List<Integer>>인 컬렉터를 구현해야 함
-  * 즉 Map<Boolean, List<Integer>>는 참과 거짓을 키로, 소수와 소수가 아닌 수를 값으로 가짐
+  * 정수로 이루어진 스트림에서 누적자와 최종 결과의 형식이 Map<Boolean, List\<Integer>>인 컬렉터를 구현해야 함
+  * 즉 Map<Boolean, List\<Integer>>는 참과 거짓을 키로, 소수와 소수가 아닌 수를 값으로 가짐
     ```
     public class PrimeNumbersCollector 
         implements Collector<Integer, Map<Boolean, List<Integer>>, Map<Boolean, List<Integer>>>
@@ -2095,7 +2095,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
         .collect(reducing((s1, s2) -> s1 + s2))
         .get();
     ```
-  * X : reducing은 binaryOperator<T>, 즉 BiFunction<T, T, T>를 인수로 받음.  
+  * X : reducing은 binaryOperator\<T>, 즉 BiFunction<T, T, T>를 인수로 받음.  
     즉 reducing은 두 인수를 받아 같은 형식을 반환하는 함수를 인수로 받음  
     하지만 여기서는 두 개의 요리를 인수로 받아 문자열을 반환하기 때문에 컴파일 에러
     ```
@@ -2420,7 +2420,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 * 포크/조인 프레임워크에서는 서브태스크를 스레드 풀(ForkJoinPool)의 작업자 스레드에 분산 할당하는 ExecutorService 인터페이스를 구현함
 
 * RecursiveTask 활용
-  * 스레드 풀을 이용하려면 RecursiveTask<R>의 서브클래스를 만들어야 함
+  * 스레드 풀을 이용하려면 RecursiveTask\<R>의 서브클래스를 만들어야 함
     * 여기서 R은 병렬화된 태스크가 생성하는 결과 형식 또는 결과가 없을 때는(결과가 없더라도 다른 비지역 구조를 바꿀 수 있음) RecursiveAction 형식
     * 추상 메서드 compute를 구현해야 함
       * ``` protected abstract R compute() ```
@@ -2672,7 +2672,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 
 * 함수형 단어 수를 세는 메서드 재구현하기
   * String을 스트림으로 변환해야 함
-    * 스트림은 int, long, double 기본형만 제공하므로 Stream<Character>를 사용해야 함
+    * 스트림은 int, long, double 기본형만 제공하므로 Stream\<Character>를 사용해야 함
       ``` Stream<Character> stream = IntStream.range(0, SENTENCE.length()).mapToObj(SENTENCE::charAt); ```
     * 스트림에는 리듀싱 연산을 실행하면서 단어 수를 계산할 수 있음
       * 이때 지금까지 발견한 단어 수를 계산하는 int 변수와 마지막 문자가 공백이었는지 여부를 기억하는 boolean 변수 등 두 가지 변수가 필요함
@@ -3568,7 +3568,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
       boolean b2 = lowerCaseValidator.validate("bbbb"); // true 반환
       ```
     * 람다 표현식 사용
-      * ValidationStrategy는 함수형 인터페이스며 Predicate<String>과 같은 함수 디스크립터를 갖고 있음
+      * ValidationStrategy는 함수형 인터페이스며 Predicate\<String>과 같은 함수 디스크립터를 갖고 있음
       * 따라서 다양한 전략을 구현하는 새로운 클래스를 구현할 필요 없이 람다 표현식을 직접 전달하면 코드가 간결해짐
         ```
         Validator numericValidator = new Validator(s -> s.matches("[a-z]+"));
@@ -3604,7 +3604,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
         * 우선 주어진 고객 ID를 이용해 고객을 만족시켜야 함
         * 각각의 지점은 OnlineBanking 클래스를 상속받아 makeCustomerHappy 메서드가 원하는 동작을 수행하도록 구현할 수 있음
   * 람다 표현식 사용
-    * 이전에 정의한 makeCustomerHappy의 메서드 시그니처와 일치하도록 Consumer<Customer> 형식을 갖는 두 번째 인수를 processCustomer에 추가
+    * 이전에 정의한 makeCustomerHappy의 메서드 시그니처와 일치하도록 Consumer\<Customer> 형식을 갖는 두 번째 인수를 processCustomer에 추가
       ```
 	  public void processCustomer(int id, Consumer<Customer> makeCustomerHappy) {
 	      Customer c = Database.getCustomerWithId(id);
@@ -3756,7 +3756,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
         }
         ```
   * 람다 표현식 활용
-    * 작업 처리 객체를 Function<String, String>, 더 정확히 UnaryOperator<String> 형식의 인스턴스로 표현 가능
+    * 작업 처리 객체를 Function<String, String>, 더 정확히 UnaryOperator\<String> 형식의 인스턴스로 표현 가능
     * andThen 메서드로 이들 함수를 조합해서 체인을 만들 수 있음
       ```
       // 첫 번째 작업 처리 객체
@@ -4388,7 +4388,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
                 .limit(40) // 결과를 첫 40행으로 제한
                 .collect(toList()); // 결과 문자열을 리스트로 수집
         ```
-        * String은 파일에서 파싱할 행을 의미하며 Files.lines는 정적 유틸리티 메서드로 Stream<String>을 반환함
+        * String은 파일에서 파싱할 행을 의미하며 Files.lines는 정적 유틸리티 메서드로 Stream\<String>을 반환함
         * 파일을 한 행씩 읽는 부분의 코드는 이게 전부
         * 마찬가지로 limit(40)이라는 코드로 "ERROR"가 포함된 행을 첫 40개만 수집함
   * 스트림 API의 플루언트 형식은 잘 설계된 DSL의 또다른 특징
@@ -5200,15 +5200,15 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     * 스칼라도 T 형식의 값을 갖거나 아무 값을 가지지 않을 수 있는 Option[T]라는 구조를 제공
       * 그리고 Option 형식에서 제공하는 연산을 사용해서 값이 있는지 여부를 명시적으로 확인해야 함(null 확인)
       * 형식 시스템에서 이를 강제하므로 null과 관련한 문제가 일어날 가능성이 줄어듬
-  * 자바 8은 선택형값 개념의 영향을 받아서 java.util.Optional<T>라는 새로운 클래스 제공
+  * 자바 8은 선택형값 개념의 영향을 받아서 java.util.Optional\<T>라는 새로운 클래스 제공
 
 ### Optional 클래스 소개
-* 자바 8은 하스켈, 스칼라의 영향을 받아 Optional<T>라는 새로운 클래스 제공
+* 자바 8은 하스켈, 스칼라의 영향을 받아 Optional\<T>라는 새로운 클래스 제공
 * Optional 클래스는 선택형값을 캡슐화하는 클래스
 * 값이 있으면 Optional 클래스는 값을 감싸고 없으면 Optional.empty 메서드로 Optional을 반환
 * Optional.empty는 Optional의 특별한 싱글턴 인스턴스를 반환하는 정적 팩토리 메서드
 * null 참조와 Optional.empty()는 의마상으론 비슷하지만 차이점이 많음
-* Optional<Car>
+* Optional\<Car>
   * 이는 값이 없을 수 있음을 명시적으로 보여줌
   * Car는 null 참조가 할당될 수 있는데 이것이 올바른 값인지 잘못된 값인지 판단할 아무 정보가 없음
   * 예제
@@ -5239,10 +5239,10 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     }
     ```
     * Optional 클래스를 사용하면서 모델의 의미(semantic)가 더 명확해졌음을 확인할 수 있음
-      * Person은 Optional<Car>를 참조, Car는 Optional<Insurance>를 참조하는데
+      * Person은 Optional\<Car>를 참조, Car는 Optional\<Insurance>를 참조하는데
       * 이는 사람이 차를 소유했을 수도 아닐 수도 있으며
       * 자동차가 보험에 가입되어 있을 수도 아닐 수도 있음을 명확히 설명함
-      * 또한 보험 회사 이름은 Optional<String>이 아닌 String 형식으로 선언됨
+      * 또한 보험 회사 이름은 Optional\<String>이 아닌 String 형식으로 선언됨
         * 보험 회사는 반드시 이름을 가져야 함을 보여줌
         * 따라서 보험 회사 이름을 참조할 때 NullPointerException이 발생할 수도 있다는 정보를 확인할 수 있음
         * 하지만 null 확인 코드를 추가할 필요는 없음
@@ -5302,9 +5302,9 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     return name.orElse("Unknown");
     ```
     * 위 코드는 컴파일 되지 않음
-      * optPerson의 형식은 Optional<Person>이므로 map 메서드를 호출할 수 있음
-      * 하지만 getCar는 Optional<Car> 형식의 객체를 반환
-      * 즉, map 연산의 결과는 Optional<Optional<Car>> 형식의 객체
+      * optPerson의 형식은 Optional\<Person>이므로 map 메서드를 호출할 수 있음
+      * 하지만 getCar는 Optional\<Car> 형식의 객체를 반환
+      * 즉, map 연산의 결과는 Optional<Optional\<Car>> 형식의 객체
       * getInsurance는 또 다른 Optional 객체를 반환하므로 getInsurance 메서드를 지원하지 않음
     * flatMap 메서드로 해결
       * 스트림의 flatMap은 함수를 인수로 받아서 다른 스트림을 반환하는 메서드
@@ -5333,13 +5333,13 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     * 이 호출을 두 단계의 논리적 과정으로 생각할 수 있음
       * 첫 번째 단계에서는 Optional 내부의 Person에 Function을 적용함
         * 여기서는 Person의 getCar 메서드가 Function
-        * getCar 메서드는 Optional<Car>를 반환, Optional 내부의 Person이 Optional<Car>로 변환되면서 중첩 Optional이 생성됨
+        * getCar 메서드는 Optional\<Car>를 반환, Optional 내부의 Person이 Optional\<Car>로 변환되면서 중첩 Optional이 생성됨
         * 따라서 flatMap 연산으로 Optional을 평준화함
         * 평준화 과정이란 이론적으로 두 Optional을 합치는 기능을 수행하면서 둘 중 하나라도 null이면 빈 Optional을 생성하는 연산
         * fflatMap을 빈 Optional에 호출하면 아무일도 일어나지 않고 그대로 반환됨
         * 반면 Optional이 Person을 감싸고 있다면 flatMap에 전달된 Function이 Person에 적용됨
         * Function을 적용한 결과가 이미 Optional이므로 flatMap 메서드는 결과를 그대로 반환할 수 있음
-      * 두 번째 단계도 Optional<Car>를 Optional<Insurance>로 변환함
+      * 두 번째 단계도 Optional\<Car>를 Optional\<Insurance>로 변환함
       * 세 번째 단계에서는 Optional<Insurance>를 Optional<String>으로 변환함
       * Insurance.getName()은 String을 반환하므로 flatMap을 사용할 필요가 없음
   * 호출 체인 중 어떤 메서드가 빈 Optional을 반환한다면 전체 결과로 빈 Optional을 반환
@@ -5364,7 +5364,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     ```
 
 * Optional 스트림 조작
-  * List<Person>을 인수로 받아 자동차를 소유한 사람들이 가입한 보험 회사의 이름을 포함하는 Set<String>을 반환하는 메서드 구현
+  * List\<Person>을 인수로 받아 자동차를 소유한 사람들이 가입한 보험 회사의 이름을 포함하는 Set\<String>을 반환하는 메서드 구현
     ```
     public Set<String> getCarInsuranceNames(List<Person> persons) {
         return persons.stream()
@@ -5376,12 +5376,12 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     }
     ```
     * 보통 스트림 요소를 조작하려면 반환, 필터 등의 일련의 여러 긴 체인이 필요한데 이 예제는 Optional로 값이 감싸 있으므로 이 과정이 더 복잡해짐
-    * 예제에서 getCar() 메서드가 단순히 Car가 아니라 Optional<Car>를 반환
+    * 예제에서 getCar() 메서드가 단순히 Car가 아니라 Optional\<Car>를 반환
       * 사람이 자동차를 가지지 않을 수도 있는 상황임을 자각
-      * 따라서 첫 번째 map 변환을 수행하고 Stream<Optional<Car>>를 얻음
-      * 이어지는 두 개의 map 연산을 이용해 Optional<Car>를 Optional<Insurance>로 변환
-        * 그 다음 스트림이 아니라 각각의 요소에 했던 것처럼 각각을 Optional<String>로 변환
-      * 세 번의 변환 과정을 거쳐 Stream<Optional<String>>을 얻음
+      * 따라서 첫 번째 map 변환을 수행하고 Stream<Optional\<Car>>를 얻음
+      * 이어지는 두 개의 map 연산을 이용해 Optional\<Car>를 Optional\<Insurance>로 변환
+        * 그 다음 스트림이 아니라 각각의 요소에 했던 것처럼 각각을 Optional\<String>로 변환
+      * 세 번의 변환 과정을 거쳐 Stream<Optional\<String>>을 얻음
         * 사람이 차를 갖고 있지 않거나 또는 차가 보험에 가입되어 있지 않아 결과가 비어있을 수 있음
         * Optional 덕분에 이런 종류의 연산을 null 걱정없이 안전하게 처리할 수 있음
         * 하지만 마지막 결과를 얻으려면 빈 Optional을 제거하고 값을 언랩해야 하는 것이 문제
@@ -5430,8 +5430,8 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
         return cheapestCompany;
     }
     ```
-    * 이제 두 Optional을 인수로 받아 Optional<Insurance>를 반환하는 null 안전 버전(null safe version)의 메서드를 구현 해야 한다고 가정
-      * 인수로 전달한 값 중 하나라도 비어 있으면 빈 Optional<Insurance>를 반환
+    * 이제 두 Optional을 인수로 받아 Optional\<Insurance>를 반환하는 null 안전 버전(null safe version)의 메서드를 구현 해야 한다고 가정
+      * 인수로 전달한 값 중 하나라도 비어 있으면 빈 Optional\<Insurance>를 반환
       * Optional 클래스는 Optional이 값을 포함하는지 여부를 알려주는 isPresent라는 메서드도 제공함
         * isPresent 이용하여 구현
           ```
@@ -5550,7 +5550,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 
 * 기본형 Optional을 사용하지 말아야 하는 이유
   * 스트림처럼 Optional도 기본형으로 특화된 OptionalInt, OptionalLong, OptionalDouble 등의 클래스 제공
-    * 예를 들어 Optional<Integer> 대신 OptionalInt를 반환할 수 있음
+    * 예를 들어 Optional\<Integer> 대신 OptionalInt를 반환할 수 있음
   * 스트림이 많은 요소를 가질 때는 기본형 특화 스트림을 이용해서 성능을 향상시킬 수 있음
   * 하지만 Optional의 최대 요소 수는 한 개이므로 Optional은 기본형 특화 클래스로 성능을 개선할 수 없음
   * 기본형 특화 클래스는 map, flatMap, filter 등을 지원하지 않아 기본형 특화 클래스 사용을 권장하지 않음
@@ -5584,7 +5584,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 
 ### 정리
 * 역사적으로 프로그래밍 언어에서는 null 참조로 값이 없는 상황을 표현해옴
-* 자바 8에서는 값이 있거나 없음을 표현할 클래스 java.util.Optional<T>를 제공함
+* 자바 8에서는 값이 있거나 없음을 표현할 클래스 java.util.Optional\<T>를 제공함
 * 팩토리 메서드 Optional.empty, Optional.of, Optional.ofNullable 등을 이용해 Optional 객체를 만들 수 있음
 * Optional 클래스는 스트림과 비슷한 연산을 수행하는 map, flatMap, filter 등의 메서드를 제공함
 * Optional로 값이 없는 상황을 적절하게 처리하도록 강제할 수 있음
@@ -5601,7 +5601,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   }
   ```
   * 첫 번째 Optional에 flatMap을 호출했으므로 첫 번째 Optional이 비어있다면 인수로 전달한 람다 표현식이 실행되지 않고 빈 Optional 반환
-  * 반면 person값이 있으면 flatMap 메서드에 필요한 Optional<Insurance>를 반환하는 Function의 입력으로 person을 사용함
+  * 반면 person값이 있으면 flatMap 메서드에 필요한 Optional\<Insurance>를 반환하는 Function의 입력으로 person을 사용함
   * 이 함수의 바디에서는 두 번째 Optional에 map을 호출하므로 Optional이 car값을 포함하지 않으면 Function이 빈 Optional을 반환
   * 결국 nullSafeFindCheapestInsurance 메서드는 빈 Optional을 반환
   * 마지막으로 person, car가 모두 존재하면 map 메서드로 전달한 람다 표현식이 findCheapestInsurance 메서드를 안전하게 호출 가능
@@ -5975,7 +5975,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
       }
       ```
     * TemporalAdjuster 인터페이스 구현은 Temporal 객체를 어떻게 다른 Temporal 객체로 변환할지 정의함
-    * 결국 TemporalAdjuster 인터페이스를 UnaryOperator<Temporal>과 같은 형식으로 간주할 수 있음
+    * 결국 TemporalAdjuster 인터페이스를 UnaryOperator\<Temporal>과 같은 형식으로 간주할 수 있음
 
 * 날짜와 시간 객체 출력과 파싱
   * 포매팅, 파싱 전용 패키지인 java.time.format이 새로 추가됨
@@ -6190,7 +6190,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
       });
       ```
     * TemporalAdjuster를 람다로 정의
-      * UnaryOperator<LocalDate>를 인수로 받는 TemporalAdjusters클래스의 정적 팩토리 메서드 ofDateAdjuster를 사용
+      * UnaryOperator\<LocalDate>를 인수로 받는 TemporalAdjusters클래스의 정적 팩토리 메서드 ofDateAdjuster를 사용
       ```
       TemporalAdjuster nextWorkingDay = TemporalAdjusters.ofDateAdjuster(
               temporal -> {
@@ -7460,7 +7460,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   * 처음 자바는 Runnable, Thread를 동기화된 클래스와 메서드를 이용해 잠갔음
   * 자바 5는 좀 더 표현력있는 동시성을 지원
     * 특히 스레드 실행과 태스크 제출을 분리하는 ExecutorService 인터페이스 지원
-    * 높은 수준의 결과 즉 Runnable, Thread의 변형을 반환하는 Callable<T> and Future<T>, 제네릭 등을 지원
+    * 높은 수준의 결과 즉 Runnable, Thread의 변형을 반환하는 Callable\<T> and Future\<T>, 제네릭 등을 지원
     * ExecutorServices는 Runnable, Callable 둘 다 실행 가능
     * 이런 기능들 덕분에 멀티코어 CPU에서 쉽게 병렬 프로그래밍을 구현할 수 있음
   * 멀티코어 CPU에서 효과적으로 프로그래밍을 실행할 필요성이 커지면서 이후 자바버전에서 개선된 동시성 지원이 추가됨
@@ -7844,7 +7844,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
       * f의 바디는 다음을 수행
         ``` dealWithException(e); ```
     * 콜백이 여러 개면 따로 제공하는 것 보다는 한 개체로 이 메서드를 감싸는 것이 좋음
-      * 예를 들어 자바 9 플로 API에서는 여러 콜백을 한 객체(네 개의 콜백을 각각 대표하는 네 메서드를 포함하는 Subscriber<T> 클래스)로 감쌈
+      * 예를 들어 자바 9 플로 API에서는 여러 콜백을 한 객체(네 개의 콜백을 각각 대표하는 네 메서드를 포함하는 Subscriber\<T> 클래스)로 감쌈
         * 예제
           ```
           // 각각의 콜백이 호출됨
@@ -7968,7 +7968,7 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
           ``` myStream.map().filter().sum(); ```
         * 또 다른 예
           * compose(), andThen() 같은 메서드를 두 Function에 이용해 다른 Function을 얻을 수 있음
-      * CompletableFuture<T>에 thenCombine 메서드를 사용함으로 두 연산 결과를 더 효과적으로 사용 가능
+      * CompletableFuture\<T>에 thenCombine 메서드를 사용함으로 두 연산 결과를 더 효과적으로 사용 가능
         * thenCombine 메서드는 다음과 같은 시그니처를 갖고 있음
           * 제네릭, 와일드카드와 관련된 문제를 피할 수 있게 간소화됨
           ```
@@ -8064,14 +8064,14 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
           ```
           * c1이나 c2의 값이 변경됐을 때 c3가 두 값을 더하도록 지정하는 방법
             * c1과 c2에 이벤트가 발생했을 때 c3를 구독하도록 만들어야 함
-            * 그러려면 다음과 같은 인터페이스 Publisher<T>가 필요
+            * 그러려면 다음과 같은 인터페이스 Publisher\<T>가 필요
               ```
               interface Publisher<T> {
                   void subscribe(Subscriber<? super T> subscriber);
               }
               ```
               * 이 인터페이스는 통신할 구독자를 인수로 받음
-            * Subscriber<T> 인터페이스는 onNext()라는 정보를 전달할 단순 메서드를 포함하며 구현자가 필요한대로 이 메서드를 구현 가능
+            * Subscriber\<T> 인터페이스는 onNext()라는 정보를 전달할 단순 메서드를 포함하며 구현자가 필요한대로 이 메서드를 구현 가능
               ```
               interface Subscriber<T> {
                   void onNext(T t);
