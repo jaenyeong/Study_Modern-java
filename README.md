@@ -9193,3 +9193,839 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 
 ### [quiz]
 ---
+
+## chapter 17 - 리액티브 프로그래밍
+* 리액티브 프로그래밍 패러다임의 중요성이 증가하는 이유
+  * 수년 전까지 대규모 앱은 수십 대의 서버, 기가바이트의 데이터, 수초의 응답 시간, 당연히 여겨졌던 몇 시간의 유지보수 시간 등의 특징을 가졌음
+  * 오늘날에는 다음과 같은 세 가지 이유로 상황이 변하고 있음
+    * 빅데이터
+      * 보통 빅데이터는 페타바이트 단위로 구성되며 매일 증가함
+    * 다양한 환경
+      * 모바일 디바이스에서부터 수천 개의 멀티 코어 프로세서로 실행되는 클라우드 기반 클러스터에 이르기까지 다양한 환경에 앱이 배포됨
+    * 사용 패턴
+      * 사용자는 1년 내내 항상 서비스를 이용할 수 있으며 밀리초 단위의 응답 시간을 기대함
+  * 예전 소프트웨어 아키텍처로는 오늘날의 요구사항을 만족시킬 수 없음
+    * 인터넷 트래픽을 가장 많이 일으키는 디바이스가 모바일인 요즘은 이런 양상이 두드러짐
+    * 사물인터넷(IoT) 같은 기기들로 가까운 미래에는 상황이 더욱 심화될 것
+  * 리액티브 프로그래밍에서는 다양한 시스템과 소스에서 들어오는 데이터 항목 스트림을 비동기적으로 처리하고 합쳐서 이런 문제를 해결함
+    * 실제로 이런 패러다임에 맞게 설계된 앱은 발생한 데이터 항목을 바로 처리함으로 사용자에게 높은 응답성을 제공함
+    * 게다가 한개의 컴포넌트나 앱뿐 아니라 전체의 리액티브 시스템을 구성하는 여러 컴포넌트를 조절하는 데도 리액티브 기법을 사용할 수 있음
+    * 이런 방식으로 구성된 시스템에서는 고장, 정전 같은 상태에 대처할 뿐 아니라 다양한 네트워크 상태에서 메시지를 교환하고 전달할 수 있음
+      * 무거운 작업을 하고 있는 상황에서도 가용성을 제공함
+      * 전통적으로 개발자는 자신의 시스템이나 앱이 서로 느슨하게 결합되었다고 가정하지만 실제 이들 컴포넌트 자체가 앱인 상황이 많음
+      * 이런 맥락에서 컴포넌트와 앱의 의미는 거의 같다고 할 수 있음
+
+### 리액티브 매니패스토
+* [reactive manifesto] https://www.reactivemanifesto.org/ko
+* 2013 ~ 2014년에 걸쳐 개발되었으며 리액티브 앱과 시스템 개발의 핵심 원칙을 공식적으로 정의함
+  * 조나스 보너(Jonas Boner), 데이브 팔리(Dave Farley), 롤랜드 쿤(Roland Kuhn), 마틴 톰슨(Martin Thompson)에 의해 개발됨
+  * 반응성(responsive) - 선언문에는 응답성으로 표기되어 있음
+    * 리액티브 시스템은 빠를 뿐 아니라 더 중요한 특징으로 일정하고 예상할 수 있는 반응 시간을 제공함
+    * 결과적으로 사용자가 기대치를 가질 수 있음
+    * 기대치를 통해 사용자의 확신이 증가하면서 사용할 수 있는 앱이라는 확인을 제공할 수 있음
+  * 회복성(resilient) - 선언문에는 탄력성으로 표기되어 있음
+    * 장애가 발생해도 시스템은 반응해야 함
+    * 컴포넌트 실행 복제, 여러 컴포넌트의 시간(발송자와 수신자가 독립적인 생명주기를 가짐)과 공간(발송자와 수신자가 다른 프로세스에서 실행됨) 분리
+    * 각 컴포넌트가 비동기적으로 작업을 다른 컴포넌트에 위임하는 등 리액티브 매니페스토는 회복성을 달성할 수 있는 다양한 기법을 제시함
+  * 탄력성(elastic) - 선언문에는 유연성으로 표기되어 있음
+    * 앱의 생명주기 동안 다양한 작업 부하를 받게 되는데 이 다양한 작업 부하로 앱의 반응성이 위협받을 수 있음
+    * 리액티브 시스템에서는 무서운 작업 부하가 발생하면 자동으로 관련 컴포넌트에 할당된 자원 수를 늘림
+  * 메시지 주도(Message-driven) - 선언문에는 메시지 구동으로 표기되어 있음
+    * 회복성과 탄력성을 지원하려면 약한 결합, 고립, 위치 투명성을 지원할 수 있도록 시스템을 구성하는 컴포넌트의 경계를 명확하게 정의해야 함
+    * 비동기 메시지를 전달해 컴포넌트 끼리의 통신이 이루어짐
+    * 이 덕분에 회복성(장애를 메시지로 처리)과 탄력성(주고 받은 메시지의 수를 감시하고 메시지의 양에 따라 적절하게 리소스를 할당)을 얻을 수 있음
+* 리액티브 시스템의 핵심 기능
+  * 반응성
+    * 시스템은 가능한한 적정 시간안에 반응함
+    * 반응성이 뒷받침되어야 사용성을 높일 수 있음
+  * 탄력성
+    * 다양한 작업 부하에도 시스템 반응성이 유지됨
+    * 입력 속도가 바뀐다면 이들 입력 관련 서비스에 할당된 자원을 늘리거나 줄임으로 반응할 수 있음
+  * 회복성
+    * 장애 시에도 시스템의 반응성은 유지됨
+  * 컴포넌트 간의 약한 결합, 고립, 위치 투명성이 유지되도록 시스템은 비동기 메시지 전달에 의존함
+
+* 애플리케이션 수준의 리액티브
+  * 앱 수준 컴포넌트의 리액티브 프로그래밍의 주요 기능은 비동기로 작업을 수행할 수 있다는 점
+    * 17장의 나머지 부분에서는 이벤트 스트림을 블록하지 않고 비동기로 처리하는 것이 최신 멀티코어 CPU의 사용률을 극대화할 수 있는 방법
+      * 엄밀히 따지자면 내부적으로 경쟁하는 CPU의 스레드 사용률을 극대화
+    * 이 목표를 달성할 수 있도록 리액티브 프레임워크와 라이브러리는  
+      스레드(상대적으로 비싸고 희귀한 자원)를 퓨처, 액터, 일련의 콜백을 발생시키는 이벤트 루프 등과 공유하고 처리할 이벤트를 변환하고 관리
+  * 배경 지식 확인
+    * 이벤트
+    * 메시지
+    * 시그널
+    * 이벤트 루프
+    * 발행-구독
+    * 리스너
+    * 역압력
+  * 이들 기술은 스레드보다 가벼울 뿐 아니라 개발자에게 큰 이득을 제공
+    * 개발자 입장에서는 이들 기술을 이용함으로 동시, 비동기 앱 구현의 추상 수준을 높일 수 있으므로  
+      동기 블록, 경쟁 조건, 데드락 같은 저 수준의 멀티스레드 문제를 직접 처리할 필요가 없어지면서 비즈니스 요구사항을 구현하는 데 더 집중할 수 있음
+  * 스레드를 다시 쪼개는 종류의 기술을 이용할 때는 메인 이벤트 루프 안에서는 절대 동작을 블록하지 않아야 한다는 중요한 전제 조건이 항상 따름
+    * 데이터베이스나 파일 시스템 접근, 작업 완료까지 얼마나 걸릴지 예측이 힘든 원격 서비스 호출 등 모든 I/O 관련 동작이 블록 동작에 속함
+  * 두 스레드를 포함하는 풀이 있고 이벤트 스트림 세 개를 처리하는 상황을 가정
+    * 한 번에 오직 두 개의 스트림을 처리할 수 있는 상황
+    * 가능하면 이들 스트림은 두 스레드를 효율적이고 공정하게 공유해야 함
+    * 어떤 스트림의 이벤트를 처리하다보니 파일 시스템 기록 또는 블록되는 API를 이용해 데이터베이스에서 파일을 가져오는 등 느린 I/O 작업이 시작됨
+    * 이런 상황에서 스레드 2는 I/O 동작이 끝나기를 기다리며 소모됨
+    * 스레드 1은 여전히 첫 번째 스트림을 처리할 수 있지만 이전에 시작된 블록 동작이 끝나기 전까지 세 번째 스트림은 처리되지 못함
+    * RxJava, Akka 같은 리액티브 프레임워크는 별도로 지정된 스레드 풀에서 블록 동작을 실행시켜 이 문제를 해결
+    * 메인 풀의 모든 스레드는 방해받지 않고 실행되므로 모든 CPU 코어가 가장 최적의 상황에서 동작할 수 있음
+      * 플랫폼의 특성과 라이브러리 구현에 따라서 스레드 풀 종류의 개수가 달라질 수 있음
+      * 예를 들어 최근 안드로이드 개발에 사용되는 코틀린에서 제공하는 코루틴(Coroutines)에서 
+        * I/O 관련 작업을 실행하도록 지정된 Dispatcher.IO
+        * UI 작업을 실행하는 Dispatcher.Main
+        * 기타 CPU를 사용하는 작업을 실행하는 Dispatcher.Default
+        * 등을 제공함
+    * CPU 관련 작업과 I/O 관련 작업을 분리하면 조금 더 정밀하게 풀의 크기 등을 설정할 수 있고 두 종류의 작업의 성능을 관찰할 수 있음
+      * CPU 관련 작업이든 I/O 관련 작업이든 현재 스레드를 블록한다는 사실은 같음
+      * 하지만 두 작업에는 큰 차이가 있음
+      * CPU 관련 작업은 실제로 할당된 CPU 코어 스레드를 100% 활용해 뭔가를 연산하느라 다른 일을 처리할 수 없어 블록되는 상황
+      * 반면 I/O 관련 작업에서는 사용자 입력 같은 외부 응답을 기다리면서 CPU 코어나 스레드가 처리할 일이 없이 블록되는 상황
+      * 이런 이유에서 개발자는 CPU가 최대로 활용될 수 있도록 특정 작업이 CPU 관련 작업인지 I/O 관련 작업인지를 적절하게 선택해야 함
+  * 리액티브 원칙을 따르는 것은 리액티브 프로그래밍의 일부일 뿐이며 가장 어려운 부분은 따로 있음
+    * 리액티브 시스템을 만들려면 훌륭하게 설계된 리액티브 앱 집함이 서로 잘 조화를 이루게 만들어야 함
+
+* 시스템 수준의 리액티브
+  * 리액티브 시스템은 여러 앱이 한 개의 일관적인, 회복할 수 있는 플랫폼을 구성할 수 있게 해줄 뿐 아니라  
+    이들 앱 중 하나가 실패해도 전체 시스템은 계속 운영될 수 있도록 도와주는 소프트웨어 아키텍처
+    * 리액티브 앱은 비교적 짧은 시간 동안만 유지되는 데이터 스트림에 기반한 연산을 수행하며 보통 이벤트 주도로 분류됨
+    * 리액티브 시스템의 주요 속성으로 메시지 주도를 꼽을 수 있음
+  * 메시지는 정의된 목적지 하나를 향하는 반면, 이벤트는 관련 이벤트를 관찰하도록 등록한 컴포넌트가 수신한다는 점이 다름
+    * 리액티브 시스템에서는 수신자와 발신자가 각각 수신 메시지, 발신 메시지와 결합하지 않도록 이들 메시지를 비동기로 처리해야 함
+    * 그래야 시스템이 장애(회복성)와 높은 부하(탄력성)에서도 반응성을 유지할 수 있음
+  * 정확히 말하자면 리액티브 아키텍처에서는 컴포넌트에서 발생한 장애를 고립시킴으로  
+    문제가 주변의 다른 컴포넌트로 전파되면서 전체 시스템 장애로 이어지는 것을 막음으로 회복성을 제공함
+    * 시스템에 장애가 발생했을 때 서서히 성능이 저하되는 것이 아니라 문제를 격리함으로 장애에서 완전 복구되어 건강한 상태로 시스템이 돌아옴
+    * 이런 맥락에서 횝고성은 결함 허용 능력(fault-tolerance)과 같은 의미를 지님
+    * 시스템에 장애가 발생했을 때 서서히 성능이 저하되는 것이 아니라 문제를 격리함으로 장애에서 완전히 복구되어 건강한 상태로 시스템이 돌아옴
+    * 이런 마법은 에러 전파를 방지하고 이들을 메시지로 바꾸어 다른 컴포넌트로 보내는 등 감독자 역할을 수행함으로 이루어짐
+    * 이렇게 컴포넌트 자체로 문제가 한정되고 외부로는 안정성을 보장하는 방식으로 문제를 관리할 수 있음
+  * 고립과 비결합이 회복성의 핵심이라면 탄력성의 핵심은 위치 투명성
+    * 위치 투명성은 리액티브 시스템의 모든 컴포넌트가 수신자의 위치에 상관없이 다른 모든 서비스와 통신할 수 있음을 의미
+    * 위치 투명성 덕분에 시스템을 복제할 수 있으며 현재 작업 부하에 따라 (자동으로) 앱을 확장할 수 있음
+    * 위치를 따지지 않는 확장성은 리액티브 앱(시간에 기반한 비동기, 동시적, 비결합)과  
+      리액티브 시스템(위치 투명성을 통한 공간적 비결합할 수 있음)의 또 다른 차이를 보여줌
+
+### 리액티브 스트림과 플로 API
+* 리액티브 프로그래밍은 리액티브 스트림을 사용하는 프로그래밍
+  * 리액티브 스트림은 잠재적으로 무한의 비동기 데이터를 순서대로 그리고 블록하지 않는 역압력을 전제해 처리하는 표준 기술
+  * 역압력은 발행-구독 프로토콜에서 이벤트 스트림의 구독자가 이벤트를 발행자가 이벤트를 제공하는 속도보다 느린 속도로 소비하면서  
+    문제가 발생하지 않도록 보장하는 장치
+  * 이런 상황이 발생했을 때 부하가 발생한 컴포넌트가 완전 불능이 되거나 예기치 않는 방식으로 이벤트를 잃어버리는 등의 문제가 발생하지 않음
+  * 부하가 발생한 컴포넌트는 이벤트 발생 속도를 늦추라고 알리거나,  
+    얼마나 많은 이벤트를 수신할 수 있는지 알리거나,  
+    다른 데이터를 받기 전에 기존의 데이터를 처리하는 데 얼마나 시간이 걸리는지를 업스트림 발행자에게 알릴 수 있어야 함
+* 스트림 처리의 비동기적인 특성상 역압력 기능의 내장은 필수라는 사실을 알 수 있음
+  * 실제 비동기 작업이 실행되는 동안 시스템에는 암묵적으로 블록 API로 인해 역압력이 제공되는 것
+  * 안타깝게도 비동기 작업을 실행하는 동안에는 그 작업이 완료될 때까지 다른 유용한 작업을 실행할 수 없으므로 기다리면서 많은 자원을 낭비하게 됨
+  * 반면 비동기 API를 이용하면 하드웨어 사용률을 극대화할 수 있지만 다른 느린 다운스트림 컴포넌트에 너무 큰 부하를 줄 가능성이 생김
+  * 따라서 이런 상황을 방지할 수 있도록 역압력이나 제어 흐름 기법이 필요함
+  * 이들 기법은 데이터 수신자가 스레드를 블록하지 않고도 데이터 수신자가 처리할 수 없을만큼 많은 데이터를 받는 일을 방지하는 프로토콜을 제공함
+* 넷플릭스, 레드햇, 트위터, 라이트밴드 및 기타 회사들이 참여한 리액티브 스트림 프로젝트(Reactive Streams project)
+  * http://www.reactive-streams.org
+  * 모든 리액티브 스트림 구현이 제공해야 하는 최소 기능 집합을 네 개의 관련 인터페이스로 정의함
+  * 자바 9의 새로운 java.util.concurrent.Flow 클래스 뿐 아니라
+    * Akka 스트림(라이트벤드)
+    * 리액터(피보탈)
+    * RxJava(넷플릭스)
+    * Vert.x(레드햇)
+    * 등 많은 서드 파티 라이브러리에서 이들 인터페이스를 구현
+
+* Flow 클래스 소개
+  * 자바 9에서는 리액티브 프로그래밍을 제공하는 클래스 java.util.concurrent.Flow 추가
+    * 이 클래스는 정적 컴포넌트 하나를 포함하고 있으며 인스턴스화할 수 없음
+    * 리액티브 스트림 프로젝트의 표준에 따라 프로그래밍 발행-구독 모델을 지원할 수 있도록 Flow 클래스는 중첩된 인터페이스 네 개를 포함
+      * Publisher
+      * Subscriber
+      * Subscription
+      * Processor
+    * Publisher가 항목을 발행하면 Subscriber가 한 개씩 또는 한 번에 여러 항목을 소비하는데
+      Subscription이 이 과정을 관리할 수 있도록 Flow 클래스는 관련된 인터페이스와 정적 메서드를 제공
+    * Publisher는 수많은 일련의 이벤트를 제공할 수 있지만 Subscriber가 요구사항에 따라 역압력 기법에 의해 이벤트 제공 속도가 제한됨
+    * Publisher는 자바의 함수형 인터페이스(한 개의 추상 메서드만 정의)로  
+      Subscriber는 Publisher가 발행한 이벤트의 리스너로 자신을 등록할 수 있음
+    * Subscription은 Publisher와 Subscriber 사이의 제어 흐름, 역압력을 관리
+    * 이들 세 인터페이스 및 Processor 인터페이스
+      * Flow.Publisher 인터페이스
+        ```
+        @FunctionalInterface
+        public static interface Publisher<T> {
+            public void subscribe(Subscriber<? super T> subscriber);
+        }
+        ```
+      * Flow.Subscriber 인터페이스
+        * Subscriber는 Publisher가 관련 이벤트를 발행할 때 호출할 수 있도록 콜백 메서드 네 개를 정의
+        ```
+        public static interface Subscriber<T> {
+            public void onSubscribe(Subscription subscription);
+            public void onNext(T item);
+            public void onError(Throwable throwable);
+            public void onComplete();
+        }
+        ```
+        * 이들 이벤트는 다음 프로토콜에서 정의한 순서로 지정된 메서드 호출을 통해 발행되어야 함
+          * onSubscribe onNext* (onError | onComplete)?
+          * 위 표기는 onSubscribe 메서드가 항상 처음 호출되고 이어서 onNext가 여러 번 호출될 수 있음을 의미
+          * 이벤트 스트림은 영원히 지속되거나 아니면 onComplete 콜백을 통해 더 이상의 데이터가 없고 종료됨을 알릴 수 있으며  
+            또는 Publisher에 장애가 발생했을 때는 onError를 호출할 수 있음
+            * 터미널로 문자열을 읽을 때 파일의 끝이나 I/O 에러와 비슷하다고 생각하면 쉬움
+        * Subscriber가 Publisher에 자신을 등록할 때 Publisher는 처음으로 onSubscribe 메서드를 호출해 Subscription 객체를 전달
+          * Subscription 인터페이스는 메서드 두 개를 정의함
+          * Subscription은 첫 번째 메서드로 Publisher에게 주어진 개수의 이벤트를 처리할 준비가 되었음을 알릴 수 있음
+          * 두 번째 메서드로는 Subscription을 취소, 즉 Publisher에게 더 이상 이벤트를 받지 않음을 통지함
+      * Flow.Subscription 인터페이스
+        ```
+        public static interface Subscription {
+            public void request(long n);
+            public void cancel();
+        }
+        ```
+      * Flow.Processor 인터페이스
+        * Processor 인터페이스는 단지 Publisher와 Subscriber를 상속받을 뿐 아무 메서드도 추가하지 않음
+          ```
+          public static interface Processor<T,R> extends Subscriber<T>, Publisher<R> {
+          }
+          ```
+        * 실제 이 인터페이스는 리액티브 스트림에서 처리하는 이벤트의 변환 단계를 나타냄
+          * Processor가 에러를 수신하면 이로부터 회복하거나(그리고 Subscription은 취소로 간주)  
+            즉시 onError 신호로 모든 Subscriber에 에러를 전파할 수 있음
+          * 마지막으로 Subscriber가 Subscription을 취소하면 Processor는 자신의 업스트림 Subscription도 취소함으로 취소 신호를 전파해야 함
+            * 명세서에서 취소가 엄격하게 요구되지 않음에도 불구하고
+    * 자바 9 플로 명세서에서는 이들 인터페이스 구현이 어떻게 서로 협력해야 하는지를 설명하는 규칙 집합을 정의
+      * 규칙 요약
+        * Publisher는 반드시 Subscription의 request 메서드에 정의된 개수 이하의 요소만 Subscriber에 전달해야 함
+          * 하지만 Publisher는 지정된 개수보다 적은 수의 요소를 onNext로 전달할 수 있음
+            * 동작이 성공적으로 끝났으면 onComplete를 호출
+            * 문제가 발생하면 onError를 호출해 Subscription을 종료할 수 있음
+        * Subscriber는 요소를 받아 처리할 수 있음을 Publisher에 알려야 함
+          * 이런 방식으로 Subscriber는 Publisher에 역압력을 행사할 수 있고  
+            Subscriber가 관리할 수 없이 너무 많은 요소를 받는 일을 피할 수 있음
+          * 더욱이 onComplete나 onError 신호를 처리하는 상황에서  
+            Subscriber는 Publisher나 Subscription의 어떤 메서드도 호출할 수 없으며 Subscription이 취소되었다고 가정해야 함
+          * 마지막으로 Subscriber는 Subscription.request() 메서드 호출이 없이도 언제든 종료 시그널을 받을 준비가 되어 있어야 함
+            * Subscription.cancel()이 호출된 이후에라도 한 개 이상의 onNext를 받을 준비가 되어 있어야 함
+        * Publisher와 Subscriber는 정확하게 Subscription을 공유해야 하며 각각이 고유한 역할을 수행해야 함
+          * 그러려면 onSubscribe와 onNext 메서드에서 Subscriber는 request 메서드를 동기적으로 호출할 수 있어야 함
+          * 표준에서는 Subscription.cancel() 메서드는 몇 번을 호출해도 한 번 호출한 것과 같은 효과를 가져야 하며  
+            여러 번 이 메서드를 호출해도 다른 추가 호출에 별 영향이 없도록 스레드에 안전해야 한다고 명시함
+          * 같은 Subscriber 객체에 다시 가입하는 것은 권장하지 않지만 이런 상황에서 예외가 발생해야 한다고 명세서가 강제하진 않음
+          * 이전의 취소된 가입이 영구적으로 적용되었다면 이후의 기능에 영향을 주지 않을 가능성도 있기 때문
+    * 자바 9 플로 API/리액티브 스트림 API에서는 Subscriber 인터페이스의 모든 메서드 구현이 Publisher를 블록하지 않도록 강제
+      * 하지만 이들 메서드가 이벤트를 동기적으로 처리해야 하는지 아니면 비동기적으로 처리해야 하는지는 지정하지 않음
+      * 하지만 이들 인터페이스에 정의된 모든 메서드는 void를 반환, 온전히 비동기 방식으로 이들 메서드를 구현할 수 있음
+
+* 첫 번째 리액티브 애플리케이션 만들기
+  * Flow 클래스에 정의된 인터페이스는 대부분 직접 구현하도록 의도된 것이 아님
+    * 그럼에도 자바 9 라이브러리는 이들 인터페이스를 구현하는 클래스를 제공하지 않음
+    * 이전에 언급한 Akka, RxJava 등의 리액티브 라이브러리에서는 이들 인터페이스를 구현함
+    * 자바 9 java.util.concurrent.Flow 명세는 이들 라이브러리가 준수해야 할 규칙과 다양한 리액티브 라이브러리를 이용해 개발된  
+      리액티브 앱이 서로 협동하고 소통할 수 있는 공용어를 제시
+    * 더욱이 이들 리액티브 라이브러리는 보통 추가적인 기능을 제공함
+      * java.util.concurrent.Flow 인터페이스에 정의된 최소 하위 집합을 넘어 리액티브 스트림을 변형하고 합치는 기능과 관련된 클래스와 메서드 등
+  * 배경은 그렇지만 자바 9 플로 API를 직접 이용하는 첫 리액티브 앱을 개발하면서 지금까지 배운 네 개의 인터페이스가 어떻게 동작하는지 쉽게 확인
+    * 끝에 가서는 리액티브 원칙을 적용해 온도를 보고하는 간단한 프로그램을 완성
+    * 이 프로그램은 두 컴포넌트를 포함함
+      * TempInfo
+        * 원격 온도계를 흉내 냄
+        * 0에서 99 사이의 화씨 온도를 임의로 만들어 연속적으로 보고
+      * TempSubscriber
+        * 레포트를 관찰하면서 각 도시에 설치된 센서에서 보고한 온도 스트림을 출력함
+    * 예제 소스 작성
+      * 온도를 전달하는 간단한 클래스 정의
+        ```
+        public class TempInfo {
+            public static final Random random = new Random();
+            private final String town;
+            private final int temp;
+        
+            public TempInfo(String town, int temp) {
+                this.town = town;
+                this.temp = temp;
+            }
+        
+            // 정적 팩토리 메서드를 이용해 해당 도시의 TempInfo 인스턴스 생성
+            public static TempInfo fetch(String town) {
+                // 10분의 1 확률로 온도 가져오기 작업 실패
+                if (random.nextInt(10) == 0) {
+                    throw new RuntimeException("Error");
+                }
+                // 0에서 99 사이에서 임의의 화씨 온도를 반환
+                return new TempInfo(town, random.nextInt(100));
+            }
+        
+            @Override
+            public String toString() {
+                return "TempInfo{" +
+                    "town='" + town + '\'' +
+                    ", temp=" + temp +
+                    '}';
+            }
+        
+            public String getTown() {
+                return town;
+            }
+        
+            public int getTemp() {
+                return temp;
+            }
+        }
+        ```
+      * Subscriber가 요청할 때마다 해당 도시의 온도를 전송하도록 Subscription 구현
+        ```
+        public class TempSubscription implements Subscription {
+        	private final Flow.Subscriber<? super TempInfo> subscriber;
+        	private final String town;
+        
+        	public TempSubscription(Flow.Subscriber<? super TempInfo> subscriber, String town) {
+        		this.subscriber = subscriber;
+        		this.town = town;
+        	}
+        
+        	@Override
+        	public void request(long n) {
+        		// Subscriber가 만든 요청을 한 개씩 반복
+        		for (long i = 0L; i < n; i++) {
+        			try {
+        				// 현재 온도를 Subscriber로 전달
+        				subscriber.onNext(TempInfo.fetch(town));
+        			} catch (Exception e) {
+        				// 온도 가져오기를 실패하면 Subscriber로 에러를 전달
+        				subscriber.onError(e);
+        				break;
+        			}
+        		}
+        	}
+        
+        	@Override
+        	public void cancel() {
+        		// 구독이 취소되면 완료(onComplete) 신호를 Subscriber로 전달
+        		subscriber.onComplete();
+        	}
+        }
+        ```
+      * 새 요소를 얻을 때마다 Subscription이 전달한 온도를 출력하고 새 레포트를 요청하는 Subscriber 클래스 구현
+        ```
+        public class TempSubscriber implements Subscriber<TempInfo> {
+        	private Subscription subscription;
+        
+        	// 구독을 저장하고 첫 번째 요청을 전달
+        	@Override
+        	public void onSubscribe(Flow.Subscription subscription) {
+        		this.subscription = subscription;
+        		subscription.request(1);
+        	}
+        
+        	// 수신한 온도를 출력하고 다음 정보를 요청
+        	@Override
+        	public void onNext(TempInfo tempInfo) {
+        		System.out.println(tempInfo);
+        		subscription.request(1);
+        	}
+        
+        	// 에러가 발생하면 에러 메시지 출력
+        	@Override
+        	public void onError(Throwable throwable) {
+        		System.err.println(throwable.getMessage());
+        	}
+        
+        	@Override
+        	public void onComplete() {
+        		System.out.println("DONE!");
+        	}
+        }
+        ```
+      * Main 클래스 구현
+        * 리액티브 앱이 실제 동작할 수 있도록 Publisher를 만들고 TempSubscriber를 이용해 Publisher에 구독
+        ```
+        public class Main {
+        
+        	public static void main(String[] args) {
+        		getTemperatures("New York").subscribe(new TempSubscriber());
+        	}
+        
+        	// 구독한 Subscriber에게 TempSubscription을 전송하는 Publisher를 반환
+        	private static Publisher<TempInfo> getTemperatures(String town) {
+        		return subscriber -> subscriber.onSubscribe(new TempSubscription(subscriber, town));
+        	}
+        }
+        ```
+        * 여기서 getTemperatures 메서드는 subscriber를 인수로 받아 Subscriber의 onSubscribe 메서드를 호출함
+          * 메서드 호출시 (새 TempSubscription 인스턴스를 인수로 함)
+          * 람다의 시그니처가 Publisher 함수형 인터페이스의 유일한 메서드와 같은 시그니처를 가지므로  
+            자바 컴파일러는 자동으로 람다를 Publisher를 바꿀 수 있음
+          * main 메서드는 뉴욕의 온도를 보고할 Publisher를 만들고 새 TempSubscriber 클래스 인스턴스를 자신에게 구독시킴
+        * main 메서드 실행 결과
+          ```
+          TempInfo{town='New York', temp=97}
+          TempInfo{town='New York', temp=42}
+          TempInfo{town='New York', temp=58}
+          TempInfo{town='New York', temp=57}
+          TempInfo{town='New York', temp=96}
+          TempInfo{town='New York', temp=94}
+          TempInfo{town='New York', temp=58}
+          TempInfo{town='New York', temp=56}
+          TempInfo{town='New York', temp=51}
+          TempInfo{town='New York', temp=48}
+          TempInfo{town='New York', temp=23}
+          TempInfo{town='New York', temp=30}
+          TempInfo{town='New York', temp=82}
+          TempInfo{town='New York', temp=33}
+          TempInfo{town='New York', temp=36}
+          Error
+          ```
+      * 스택 오버플로우 발생 문제 해결
+        * Executor를 TempSubscription으로 추가한 다음 다른 스레드에서 TempSubscriber로 세 요소를 전달하는 방법이 있음
+        * 그러려면 TempSubscription을 바꿔야 함
+          ```
+          // 기존 코드 생략
+          public class TempSubscription implements Flow.Subscription {
+              // Executor 추가
+              private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+          
+              @Override
+              public void request(long n) {
+                  executor.submit(() -> {
+                      for (long i = 0L; i < n; i++) {
+                          try {
+                              subscriber.onNext(TempInfo.fetch(town));
+                          } catch (Exception e) {
+                              subscriber.onError(e);
+                              break;
+                          }
+                      }
+                  });
+              }
+          ```
+    * 지금까지는 플로 API에 정의된 네 개의 인터페이스 중 세 개만 활용
+
+* Processor로 데이터 변환하기
+  * Processor는 Subscriber이며 동시에 Publisher
+    * 사실 Processor의 목적은 Publisher를 구독한 다음 수신한 데이터를 가공해 다시 제공하는 것
+    * Processor 구현
+      * 화씨로 제공된 데이터를 섭씨로 변환해 다시 방출하는 예제
+      ```
+      // 화씨를 섭씨로 변환하는 Processor
+      // TempInfo를 다른 TempInfo로 변환하는 프로세서
+      public class TempProcessor implements Flow.Processor<TempInfo, TempInfo> {
+          private Flow.Subscriber<? super TempInfo> subscriber;
+      
+          @Override
+          public void subscribe(Flow.Subscriber<? super TempInfo> subscriber) {
+              this.subscriber = subscriber;
+          }
+      
+          // 다른 모든 신호는 업스트림 구독자에게 전달
+          @Override
+          public void onSubscribe(Flow.Subscription subscription) {
+              subscriber.onSubscribe(subscription);
+          }
+      
+          @Override
+          public void onNext(TempInfo temp) {
+              // 섭씨로 변환 후 TempInfo를 다시 전송
+              subscriber.onNext(new TempInfo(temp.getTown(), (temp.getTemp() - 32) * 5 / 9));
+          }
+      
+          // 다른 모든 신호는 업스트림 구독자에게 전달
+          @Override
+          public void onError(Throwable throwable) {
+              subscriber.onError(throwable);
+          }
+      
+          // 다른 모든 신호는 업스트림 구독자에게 전달
+          @Override
+          public void onComplete() {
+              subscriber.onComplete();
+          }
+      }
+      ```
+      * TempProcessor에서 로직을 포함하는 유일한 메서드인 onNext는 화씨를 섭씨로 변환한 다음 온도를 재전송함
+        * Subscriber 인터페이스를 구현하는 다른 모든 메서드는 단순히 수신한 모든 신호를 업스트림 Subscriber로 전달하며  
+          Publisher의 subscribe 메서드는 업스트림 Subscriber를 Processor로 등록하는 동작을 수행함
+        * 활용 예시
+          ```
+          public class Main {
+          
+              public static void main(String[] args) {
+                  // 뉴욕의 섭씨 온도를 전송할 Publisher 생성, TempSubscriber를 Publisher로 구독
+                  getCelsiusTemperatures("New York").subscribe(new TempSubscriber());
+              }
+          
+              // 구독한 Subscriber에게 TempSubscription을 전송하는 Publisher를 반환
+              private static Flow.Publisher<TempInfo> getTemperatures(String town) {
+                  return subscriber -> subscriber.onSubscribe(new TempSubscription(subscriber, town));
+              }
+          
+              public static Flow.Publisher<TempInfo> getCelsiusTemperatures(String town) {
+                  return subscriber -> {
+                      // TempProcessor를 만들고 Subscriber와 반환된 Publisher 사이로 연결
+                      TempProcessor processor = new TempProcessor();
+                      processor.subscribe(subscriber);
+                      processor.onSubscribe(new TempSubscription(processor, town));
+                  };
+              }
+          }
+          ```
+          * 결과
+            ```
+            TempInfo{town='New York', temp=7}
+            TempInfo{town='New York', temp=22}
+            TempInfo{town='New York', temp=33}
+            TempInfo{town='New York', temp=22}
+            TempInfo{town='New York', temp=15}
+            TempInfo{town='New York', temp=35}
+            TempInfo{town='New York', temp=-17}
+            TempInfo{town='New York', temp=14}
+            TempInfo{town='New York', temp=-15}
+            TempInfo{town='New York', temp=-12}
+            TempInfo{town='New York', temp=10}
+            TempInfo{town='New York', temp=36}
+            TempInfo{town='New York', temp=2}
+            TempInfo{town='New York', temp=17}
+            TempInfo{town='New York', temp=-17}
+            Error
+            ```
+
+* 자바는 왜 플로 API 구현을 제공하지 않는가
+  * 자바 라이브러리는 보통 인터페이스와 구현을 제공하는 반면 플로 API는 구현을 제공하지 않으므로 우리가 직접 인터페이스를 구현
+    * 일례로 리스트 API와 비교
+    * ArrayList\<T>를 포함한 다양한 클래스가 List\<T> 인터페이스를 구현
+    * 엄밀하게는 ArrayList\<T> 클래스는 List\<T> 인터페이스를 구현하는 추상 클래스 AbstractList\<T>를 상속받음
+  * 반면 자바 9에서는 Publisher\<T> 인터페이스만 선언하고 구현을 제공하지 않으므로 직접 인터페이스를 구현해야 함
+    * 인터페이스가 프로그래밍의 구조를 만드는데 도움이 될 순 있지만 프로그램을 더 빨리 구현하는 데는 도움이 되지 않음
+  * API를 만들 당시 Akka, RxJava 등 다양한 리액티브 스트림의 자바 코드 라이브러리가 이미 존재했기 때문
+    * 원래 같은 발행-구독 사상에 기반해 리액티브 프로그래밍을 구현
+    * 하지만 이들 라이브러리는 독립적으로 개발되었고 서로 다른 이름 규칙과 API를 사용함
+    * 자바 9의 표준화 과정에서 기존처럼 자신만의 방법이 아닌 이들 라이브러리는  
+      공식적으로 java.util.concurrent.Flow의 인터페이스를 기반으로 리액티브 개념을 구현하도록 진화
+      * 이 표준화 작업 덕분에 다양한 라이브러리가 쉽게 협력할 수 있게 되었음
+  * 리액티브 스트림 구현을 만드는 것은 복잡한 일이므로 대부분의 사용자는 단순히 기존 구현을 사용할 것
+    * 인터페이스를 구현하는 대부분의 클래스가 그렇듯 보통 실제 구현 클래스는 최소 구현에서 요구하는 것 이상의 기능을 제공함
+
+### 리액티브 라이브러리 RxJava 사용하기
+* RxJava 2.0버전 사용
+* RxJava는 자바로 리액티브 앱을 구현하는 데 사용하는 라이브러리
+  * 넷플릭스의 Reactive Extensions(Rx) 프로젝트의 일부로 시작됨
+    * 원래 마이크로소프트가 닷넷 환경에서 개발했던 프로젝트
+  * Reactive Streams API와 java.util.concurrent.Flow를 지원하도록 RxJava 2.0 버전이 개발됨
+* 자바에서 외부 라이브러리를 사용할 때는 import 문에서 그 사실이 두드러짐
+  * 예를 들어 자바 플로 인터페이스를 포함하는 코드
+    ``` import java.lang.concurrent.Flow.*; ```
+  * Publisher의 구현인 Observable 같은 클래스를 이용시 import
+    ``` import io.reactivex.Observable; ```
+  * 이 시점에서 한 가지 중요한 아키텍처의 속성 강조
+    * 좋은 시스템 아키텍처 스타일을 유지하려면 시스템에서 오직 일부에 사용된 개념의 세부 사항을 전체 시스템에서 볼 수 있지 않게 만들어야 함
+    * 따라서 Observable의 추가 구조가 필요한 상황에서만 Observable을 사용하고 그렇지 않으면 Publisher의 인터페이스를 사용하는 것이 좋음
+      * List 인터페이스에도 이 원칙이 적용되어 있음
+      * 예를 들어 전달하는 값이 ArrayList라는 사실을 이미 알고 있지만,  
+        이 값의 파라미터 형식을 List로 설정함으로 구현 세부사항을 밖으로 노출할지 않을 수 있음
+      * 나중에 ArrayList를 LinkedList로 바꾸더라도 기존 코드를 크게 바꿀 필요가 없게 됨
+* RxJava는 Flow.Publisher를 구현하는 두 클래스를 제공함
+  * Flowable
+    * 리액티브 당김 기반 역압력 기능이 있는 Flow를 포함하는 io.reactivex.Flowable 클래스
+      * 역압력은 Publisher가 너무 빠른 속도로 데이터를 발행하면서 Subscriber가 이를 감당할 수 없는 상황에 이르는 것을 방지하는 기능
+  * Observable
+    * 역압력을 지원하지 않는 기존 버전의 RxJava에서 제공하던 Publisher io.reactivex.Observalbe 클래스
+    * 이 클래스는 단순한 프로그램, 마우스 움직임 같은 사용자 인터페이스 이벤트에 더 적합함
+      * 이들 이벤트 스트림에는 역압력을 적용하기 어렵기 때문
+      * 마우스 움직임을 느리게 하거나 멈출 수 없기 때문
+      * 이런 이유로 RxJava는 이벤트 스트림을 두 가지 구현 클래스로 제공함
+* RxJava는 아래와 같은 상황에서 역압력을 적용하지 말 것을 권장
+  * 천 개 이하의 요소를 가진 스트림
+  * 마우스 움직임, 터치 이벤트 등 역압력을 적용하기 힘든 GUI 이벤트
+  * 자주 발생하지 않는 종류의 이벤트
+* Observable 인터페이스 사용법 설명
+  * 모든 구독자는 구독 객체의 request(Long.MAX_VALUE) 메서드를 이용해 역압력 기능을 끌 수 있음
+  * 물론 Subscriber가 정해진 시간 안에 수신한 모든 이벤트를 처리할 수 있다고 확신할 수 있는 상황이 아니라면 역압력 기능을 끄지 않는 것이 좋음
+
+* Observable 만들고 사용하기
+  * Observable, Flowable 클래스는 다양한 종류의 리액티브 스트림을 편리하게 만들 수 있도록 여러 팩토리 메서드를 제공함
+    * 두 클래스는 Publisher를 구현하므로 팩토리 메서드는 리액티브 스트림을 만듦
+  * 미리 정의한 몇 개의 요소를 이용해 간단한 Observable을 만들 수 있음
+    ``` Observable<String> strings = Observable.just("first", "second"); ```
+  * 여기서 just() 팩토리 메서드는 한 개 이상의 요소를 이용해 이를 방출하는 Observable로 변환함
+    * Observable의 구독자는 onNext("first"), onNext("second"), onComplete()의 순서로 메시지를 받음
+  * 사용자와 실시간으로 상호작용하면서 지정된 속도로 이벤트를 방출하는 상황에서 유용하게 사용할 수 있는 다른 Observable 팩토리 메서드도 있음
+    ``` Observable<Long> onePerSec = Observable.interval(1, TimeUnit.SECONDS); ```
+    * 팩토리 메서드 interval은 onePerSec라는 변수로 Observable을 반환해 할당함
+      * 이 Observable은 0에서 시작해 1초 간격으로 long 형식의 값을 무한으로 증가시키며 값을 방출함
+      * 이제 각 도시에서 매 초마다 온도 보고를 방출하는 다른 Observable을 onePerSec로 대신할 것
+  * 최종 목표를 달성하기 전에 중간 과정으로 이들 온도를 매 초마다 출력할 수 있음
+    * 그러러면 onePerSec에 가입해서 매 초마다 온도를 받고 이를 이용해 관심이 있는 도시의 온도를 출력해야 함
+    * RxJava에서 Observable이 플로 API의 Publisher 역할을 하며 Observer는 Flow의 Subscriber 인터페이스 역할을 함
+      * Observer 인터페이스와 Observable 클래스는 자바 9에서 제거됨
+      * 새로운 코드는 플로 API를 사용해야 함
+      * 이 변화에 맞춰 RxJava가 어떻게 진화할 것인지는 지켜봐야 함
+    * RxJava Observer 인터페이스는 자바 9 Subscriber와 같은 메서드를 정의하며  
+      onSubscribe 메서드가 Subscription 대신 Disposable 인수를 갖는다는 점만 다름
+    * Observable은 역압력을 지원하지 않으므로 Subscription의 request 메서드를 포함하지 않음
+    * Observer 인터페이스 코드
+      ```
+      public interface Observer<T> {
+          void onSubscribe(Disposable d);
+          void onNext(T t);
+          void onError(Throwable t);
+          void onComplete();
+      }
+      ```
+    * 하지만 RxJava API는 자바 9 네이티브 플로 API보다 유연함
+      * 많은 오버로드된 기능을 제공
+      * 예를 들어 다른 세 메서드는 생략하고 onNext 메서드의 시그니처에 해당하는 람다 표현식을 전달해 Observable을 구독할 수 있음
+      * 즉 이벤트를 수신하는 Consumer의 onNext 메서드만 구현하고  
+        나머지 완료, 에러 처리 메서드는 아무것도 하지 않는 기본 동작을 가진 Observer를 만들어 Observable에 가입할 수 있음
+      * 이 기능을 활용하면 Observable onPerSec에 가입하고 뉴욕에서 매 초마다 발생하는 온도를 출력하는 기능을 코드 한 줄로 구현 가능
+        ``` onePerSec.subscribe(i -> System.out.println(TempInfo.fetch("New York")); ```
+      * 위 코드에서 onePerSec Observable은 초당 한 개의 이벤트를 방출하며 메시지를 수신하면 Subscriber가 뉴욕의 온도를 추출해 출력함
+      * 하지만 위 코드를 main 메서드에 추가해서 실제 실행해보면 아무것도 출력되지 않는데  
+        이는 매 초마다 정보를 발행하는 Observable이 RxJava의 연산 스레드 풀, 즉 데몬 스레드에서 실행되기 때문
+        * 공식 문서로는 이 현상을 이해하기 힘듦
+      * main 프로그램은 실행하자마자 따로 실행할 코드가 없으므로 바로 종료됨
+        * 그리고 프로그램이 종료되었으므로 어떤 결과를 출력하기도 전에 데몬 스레드도 종료되면서 이런 현상이 발생함
+      * 위 코드 뒤에 스레드의 sleep 메서드를 추가해 프로그램 종료를 막는 방법도 있음
+      * 현재 스레드(예제에서 메인 스레드)에서 콜백을 호출하는 blockingSubscribe 메서드를 사용하면 더 깔끔하게 문제 해결 가능
+      * 이 예제에는 blockingSubscribe가 적합함
+      * 하지만 실제로는 다음과 같이 blockingSubscribe를 사용할 것
+        ```
+        onePerSec.blockingSubscribe(
+            i -> System.out.println(TempInfo.fetch("New York"))
+        );
+        ```
+        * 결과
+          ```
+          TempInfo{town='New York', temp=85}
+          TempInfo{town='New York', temp=19}
+          io.reactivex.exceptions.OnErrorNotImplementedException: The exception was not handled due to missing onError handler in the subscribe() method call. Further reading: https://github.com/ReactiveX/RxJava/wiki/Error-Handling | java.lang.RuntimeException: Error
+          	at io.reactivex.internal.functions.Functions$OnErrorMissingConsumer.accept(Functions.java:704)
+          	at io.reactivex.internal.functions.Functions$OnErrorMissingConsumer.accept(Functions.java:701)
+          	at io.reactivex.internal.observers.LambdaObserver.onError(LambdaObserver.java:77)
+          	at io.reactivex.internal.observers.LambdaObserver.onNext(LambdaObserver.java:67)
+          	at io.reactivex.internal.util.NotificationLite.acceptFull(NotificationLite.java:298)
+          	at io.reactivex.internal.operators.observable.ObservableBlockingSubscribe.subscribe(ObservableBlockingSubscribe.java:65)
+          	at io.reactivex.internal.operators.observable.ObservableBlockingSubscribe.subscribe(ObservableBlockingSubscribe.java:103)
+          	at io.reactivex.Observable.blockingSubscribe(Observable.java:5487)
+          	at com.jaenyeong.chapter_17.RxJavaExample.Main.main(Main.java:16)
+          Caused by: java.lang.RuntimeException: Error
+          	at com.jaenyeong.chapter_17.RxJavaExample.TempInfo.fetch(TempInfo.java:20)
+          	at com.jaenyeong.chapter_17.RxJavaExample.Main.lambda$main$0(Main.java:17)
+          	at io.reactivex.internal.observers.LambdaObserver.onNext(LambdaObserver.java:63)
+          	... 5 more
+          Exception in thread "main" io.reactivex.exceptions.OnErrorNotImplementedException: The exception was not handled due to missing onError handler in the subscribe() method call. Further reading: https://github.com/ReactiveX/RxJava/wiki/Error-Handling | java.lang.RuntimeException: Error
+          	at io.reactivex.internal.functions.Functions$OnErrorMissingConsumer.accept(Functions.java:704)
+          	at io.reactivex.internal.functions.Functions$OnErrorMissingConsumer.accept(Functions.java:701)
+          	at io.reactivex.internal.observers.LambdaObserver.onError(LambdaObserver.java:77)
+          	at io.reactivex.internal.observers.LambdaObserver.onNext(LambdaObserver.java:67)
+          	at io.reactivex.internal.util.NotificationLite.acceptFull(NotificationLite.java:298)
+          	at io.reactivex.internal.operators.observable.ObservableBlockingSubscribe.subscribe(ObservableBlockingSubscribe.java:65)
+          	at io.reactivex.internal.operators.observable.ObservableBlockingSubscribe.subscribe(ObservableBlockingSubscribe.java:103)
+          	at io.reactivex.Observable.blockingSubscribe(Observable.java:5487)
+          	at com.jaenyeong.chapter_17.RxJavaExample.Main.main(Main.java:16)
+          Caused by: java.lang.RuntimeException: Error
+          	at com.jaenyeong.chapter_17.RxJavaExample.TempInfo.fetch(TempInfo.java:20)
+          	at com.jaenyeong.chapter_17.RxJavaExample.Main.lambda$main$0(Main.java:17)
+          	at io.reactivex.internal.observers.LambdaObserver.onNext(LambdaObserver.java:63)
+          	... 5 more
+          ```
+          * 설계상 온도를 가져오는 기능이 임의로 실패하기 때문
+          * 예제에서 구현한 Observer는 onError 같은 에러 관리 기능을 포함하지 않으므로 위와 같은 처리되지 않은 예외가 사용자에게 직접 보여지게 됨
+  * 예제 난도 높임
+    * 에러 처리만 추가하는 것이 목표가 아님
+    * 이 기능을 일반화해야 함
+    * 온도를 직접 출력하지 않고 사용자에게 팩토리 메서드를 제공해 매 초마다 온도를 방출하는 Observable을 반환할 것
+    * 예제 코드
+      ```
+      public static Observable<TempInfo> getTemperature(String town) {
+      		// Observer를 소비하는 함수로부터 Observable 만들기
+      		return Observable.create(
+      				// 매 초마다 무한으로 증가하는 일련의 long값을 방출하는 Observable
+      				emitter -> Observable.interval(1, TimeUnit.SECONDS)
+      						.subscribe(i -> {
+      							// 소비된 옵저버가 아직 폐기되지 않았으면 어떤 작업을 수행 (이전 에러)
+      							if (!emitter.isDisposed()) {
+      								// 온도를 다섯 번 보고했으면 옵저버를 완료하고 스트림을 종료
+      								if (i >= 5) {
+      									emitter.onComplete();
+      								} else {
+      									try {
+      										// 아니면 온도를 Observer로 보고
+      										emitter.onNext(TempInfo.fetch(town));
+      									} catch (Exception e) {
+      										// 에러가 발생하면 Observer에 알림
+      										emitter.onError(e);
+      									}
+      								}
+      							}
+      						}));
+      }
+      ```
+      * 필요한 이벤트를 전송하는 ObservableEmitter를 소비하는 함수로 Observable을 만들어 반환
+      * RxJava의 ObservableEmitter 인터페이스는 RxJava의 기본 Emitter(onSubscribe 메서드가 빠진 Observer와 같음)를 상속
+        ```
+        public interface Emitter<T> {
+            void onNext(T t);
+            void onError(Throwable t);
+            void onComplete();
+        }
+        ```
+        * Emitter는 새 Disposable을 설정하는 메서드와 시퀀스가 이미 다운스트림을 폐기했는지 확인하는 메서드 등을 제공
+      * 내부적으로 매 초마다 증가하는 무한의 long값을 발행하는 onePerSec 같은 Observable을 구독
+        * 우선 구독 함수 내에서는 ObservableEmitter 인터페이스(subscribe 메서드의 인수로 넘겨짐)에서 제공하는  
+          isDisposed 메서드를 이용해 소비된 Observer가 이미 폐기되었는지 확인함 (이전 루프에서 에러가 발생했을 때 이런 상황이 벌어질 수 있음)
+        * 온도를 이미 다섯 번 방출했으면 스트림을 종료하면서 Observer를 완료시킴
+        * 그렇지 않으면 try/catch 블록안에서 요청된 도시의 최근 온도를 Observer로 보냄
+        * 온도를 얻는 과정에서 에러가 발생하면 에러를 Observer로 전달함
+      * getTemperature 메서드가 반환하는 Observable에 가입시킬 Observer를 쉽게 완성해서 전달된 온도를 출력할 수 있음
+        ```
+        public class TempObserver implements Observer<TempInfo> {
+        	@Override
+        	public void onSubscribe(Disposable d) {
+        	}
+        
+        	@Override
+        	public void onNext(TempInfo tempInfo) {
+        		System.out.println(tempInfo);
+        	}
+        
+        	@Override
+        	public void onError(Throwable e) {
+        		System.out.println("Got problem: " + e.getMessage());
+        	}
+        
+        	@Override
+        	public void onComplete() {
+        		System.out.println("Done!");
+        	}
+        }
+        ```
+      * Observer는 TempSubscriber 클래스와 비슷하지만 더 단순함
+        * RxJava의 Observable은 역압력을 지원하지 않으므로 전달된 요소를 처리한 다음 추가 요소를 요청하는 request() 메서드가 필요 없기 때문
+      * Main 클래스
+        * getTemperature 메서드가 반환하는 Observable에 Observer를 구독
+        ```
+        public class Main {
+        
+        	public static void main(String[] args) {
+                // 매 초마다 뉴욕의 온도 보고를 방출하는 Observable 만들기
+                Observable<TempInfo> observable = getTemperature("New York");
+                // 단순 Observer로 이 Observable에 가입해서 온도 출력하기
+                observable.subscribe(new TempObserver());
+        	}
+        }
+        ```
+        * 결과
+          * 다섯 번 온도를 출력하는 동안 에러가 발생하지 않고 onComplete 신호가 전송됨
+          ```
+          TempInfo{town='New York', temp=60}
+          TempInfo{town='New York', temp=1}
+          TempInfo{town='New York', temp=83}
+          TempInfo{town='New York', temp=47}
+          TempInfo{town='New York', temp=58}
+          Done!
+          ```
+
+* Observable을 변환하고 합치기
+  * RxJava나 기타 리액티브 라이브러리는 자바 9 플로 API에 비해 스트림을 합치고, 만들고, 거르는 등의 풍부한 도구상자를 제공하는 것이 장점
+    * 한 스트림을 다른 스트림의 입력으로 사용할 수 있음
+    * 이 외에도 스트림에서 관심있는 요소만 거른 다른 스트림을 만들거나 매핑 함수로 요소를 변환하거나 두 스트림을 다양한 방법으로 합치는 등의 작업 가능
+      * Flow.Processor만으로는 달성하기 어려운 일
+    * 이런 변환, 합치기 함수는 상당히 복잡하여 설명이 어려움
+      * 예를 들어 RxJava의 mergeDelayError 함수 관련 설명
+        * Observable을 한 Observable로 방출하는 Observable을 평면화해서  
+          모든 Observable 소스에서 성공적으로 방출된 모든 항목을 Observer가 수신할 수 있도록 함  
+          이때 이들 중 에러 알림이 발생해도 방해받지 않으며 이들 Observable에 동시 구독할 수 있는 한계가 있음
+      * 위 설명은 이해하기 어려움
+      * 리액티브 스트림 커뮤니티는 마블 다이어그램이라는 시각적 방법을 이용해 이런 어려움을 해결하고자 노력함
+        * 마블 다이어그램(marble diagram)은 수평선으로 표시된 리액티브 스트림에 임의의 순서로 구성된 요소가 기하학적 모형이 나타남
+        * 특수 기호는 에러나 완료 신호를 나타냄
+        * 박스는 해당 연산이 요소를 어떻게 변환하거나 여러 스트림을 어떻게 합치는지 보여줌
+  * 구현한 메서드를 일반화해서 사용자가 한 도시뿐 아니라 여러 도시에서 온도를 방출하는 Observable을 가질 수 있도록 해야 한다고 가정
+    * 메서드를 각 도시에 호출한 다음 이들 호출로부터 얻은 모든 Observable을 merge 함수를 이용해 하나로 합쳐서 마지막 요구사항을 구현함
+      ```
+      public static Observable<TempInfo> getCelsiusTemperatures(String... towns) {
+          return Observable.merge(Arrays.stream(towns)
+                  .map(TempObservable::getCelsiusTemperature)
+                  .collect(toList()));
+      }
+      ```
+      * 이 메서드는 온드를 얻으려는 도시 집합을 포함하는 가변 인수를 받음
+      * 이 가변 인수를 문자열 스트림으로 변환한 다음 각 문자열을 getCelsiusTemperature 메서드로 전달
+      * 이런식으로 각 도시는 매 초마다 도시의 온도를 방출하는 Observable로 변신
+      * 마지막으로 Observable의 스트림은 리스트로 모아지며  
+        다시 리스트는 Observable 클래스가 제공하는 정적 팩토리 메서드 merge로 전달됨
+      * 이 메서드는 Observable의 Iterable을 인수로 받아 마치 한 개의 Observable처럼 동작하도록 결과를 합침
+      * 그 결과 Observable은 전달된 Iterable에 포함된 모든 Observable의 이벤트 발행물을 시간 순서대로 방출함
+      * main 에 적용
+        ```
+        public static void main(String[] args) {
+            Observable<TempInfo> observable = getCelsiusTemperatures("New York", "Chicago", "San Francisco");
+            observable.blockingSubscribe(new TempObserver());
+        }
+        ```
+        * 결과
+          ```
+          TempInfo{town='San Francisco', temp=32}
+          TempInfo{town='New York', temp=26}
+          TempInfo{town='Chicago', temp=-4}
+          TempInfo{town='San Francisco', temp=-15}
+          TempInfo{town='New York', temp=19}
+          TempInfo{town='Chicago', temp=5}
+          TempInfo{town='New York', temp=-3}
+          TempInfo{town='Chicago', temp=-12}
+          TempInfo{town='San Francisco', temp=18}
+          TempInfo{town='San Francisco', temp=1}
+          TempInfo{town='New York', temp=8}
+          Got problem: Error
+          ```
+          * 각 도시에서 온도를 가져오는 동작을 수행하다 에러가 발생해 데이터 스트림이 동작을 멈추기 전까지 main 메서드는 매 초마다 도시의 온도를 출력함
+  * RxJava의 완벽한 가이드를 제공하려면 책 한 권이 따로 필요
+
+### 정리
+* 리액티브 프로그래밍의 기초 사상은 이미 20 ~ 30년 전에 수립되었지만 데이터 처리량과 사용자 기대치 덕분에 최근에서야 인기를 얻고 있음
+* 리액티브 소프트웨어가 지녀야 할 네 가지 관련 특징을 서술하는 리액티브 매니페스토가 리액티브 프로그래밍 사상을 공식화 함
+  * 반응성, 회복성, 탄력성, 메시지 주도
+* 여러 앱을 통합하는 리액티브 시스템과 한 개의 앱을 구현할 때에 각각 다른 접근 방식으로 리액티브 프로그래밍 원칙을 적용할 수 있음
+* 리액티브 앱은 리액티브 스트림이 전달하는 한 개 이상의 이벤트를 비동기로 처리함을 기본으로 전제함
+  * 리액티브 앱 개발에서 리액티브 스트림의 역할이 핵심적이므로 넷플릭스, 피보탈, 라이트벤드, 레드햇 등은  
+    다양한 구현의 상호운용성을 극대화할 수 있도록 컨소시엄을 구성해 개념을 표준화함
+* 리액티브 스트림은 비동기적으로 처리되므로 역압력 기법이 기본적으로 탑재되어 있음
+  * 역압력은 발행자가 구독자보다 빠른 속도로 아이템을 발행하므로 발생하는 문제를 방지함
+* 설계와 표준화 절차 결과가 자바에 반영됨
+  * 자바 9 플로 API는 Publisher, Subscriber, Subscription, Processor 네 개의 핵심 인터페이스를 정의함
+* 대부분의 상황에서는 이들 인터페이스를 직접 구현할 필요가 없으며 실제 이들 인터페이스는 리액티브 패러다임을 구현하는 다양한 라이브러리의 공용어 역할을 함
+* 가장 흔한 리액티브 프로그래밍 도구로 RxJava를 꼽을 수 있음
+  * 이 라이브러리는 자바 9 플로 API의 기본 기능에 더해 다양한 강력한 연산자를 제공함
+  * 예를 들어 한 스트림에서 방출한 요소를 변환하거나 거를 수 있으며 여러 스트림의 데이터를 일부 합치거나 전체를 모을 수 있음
+
+### [quiz]
+* 예제에서 개발한 코드에 있는 작은 문제 맞추기
+  * TempInfo 팩토리 메서드 내에서 에러를 임의로 발생시키는 코드 때문에 감춰진 상태
+  * 임의의 에러를 발생시키는 코드를 없앤 다음 main을 오래 실행하면 발생하는 문제
+  * 정답
+    * TempSubscriber가 새로운 요소를 onNext 메서드로 받을 때마다 TempSubscription으로 새 요청을 보내면  
+      request 메서드가 TempSubscriber 자신에게 또 다른 요소를 보내는 문제가 있음
+    * 이런 재귀 호출은 스택이 오버플로우 될때까지 반복해서 일어남
+      ```
+      Exception in thread "main" java.lang.StackOverflowError
+      	at java.base/sun.nio.cs.UTF_8$Encoder.encodeLoop(UTF_8.java:564)
+      	at java.base/java.nio.charset.CharsetEncoder.encode(CharsetEncoder.java:576)
+      	at java.base/sun.nio.cs.StreamEncoder.implWrite(StreamEncoder.java:292)
+      	at java.base/sun.nio.cs.StreamEncoder.implWrite(StreamEncoder.java:281)
+      	at java.base/sun.nio.cs.StreamEncoder.write(StreamEncoder.java:125)
+      	at java.base/java.io.OutputStreamWriter.write(OutputStreamWriter.java:211)
+      	at java.base/java.io.BufferedWriter.flushBuffer(BufferedWriter.java:120)
+      	at java.base/java.io.PrintStream.write(PrintStream.java:605)
+      	at java.base/java.io.PrintStream.print(PrintStream.java:745)
+      	at java.base/java.io.PrintStream.println(PrintStream.java:899)
+      ```
+
+* 영하 온도만 거르기
+  * Observable 클래스의 filter 메서드는 Predicate를 인수로 받아 Predicate의 조건을 만족하는 요소만 방출하는 두 번째 Observable을 만듦
+  * 등록된 도시의 온도가 섭씨 0도 이하일 때만 온도를 방출하도록 observable을 만들 수 있을까
+  ```
+  public static Observable<TempInfo> getNegativeTemperature(String town) {
+      return getCelsiusTemperature(town)
+              .filter(temp -> temp.getTemp() < 0);
+  }
+  ```
+---
