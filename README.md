@@ -11355,3 +11355,550 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
 
 ### [quiz]
 ---
+
+## chapter 20 - OOP와 FP의 조화 : 자바와 스칼라 비교
+* 스칼라는 객체지향과 함수형 프로그래밍을 혼합한 언어
+  * 보통 정적 형식의 프로그래밍 언어로 함수형의 기능을 수행하면서도 JVM에서 수행되는 언어
+    * 자바 느낌을 원하는 프로그래머가 찾음
+  * 스칼라는 자바에 비해 많은 기능을 제공
+    * 스칼라는 복잡한 형식 시스템, 형식 추론, 패턴 매칭, 도메인 전용 언어를 단순하게 정의할 수 있는 구조 등을 제공함
+    * 스칼라 코드에서는 모든 자바 라이브러리를 사용할 수 있음
+* 자바에서 함수형 프로그래밍을 적용하는 방법을 설명
+  * 자바와 마찬가지로 스칼라는 컬렉션을 함수형으로 처리하는 개념(스트림과 비슷한 연산), 일급 함수, 디폴트 메서드 등을 제공함
+  * 하지만 스칼라는 자바에 비해 더 다양하고 심화된 함수형 기능을 제공함
+  * 스칼라와 자바에 적용된 함수형의 기능을 살펴보면서 자바의 한계가 무엇인지 확인
+* 자바의 새로운 기능과 스칼라의 기능을 비교하는 데 초점을 맞춤
+  * 스칼라를 이용하면 자바에 비해 더 간결하고 가독성이 좋은 코드를 구현할 수 있다는 사실
+
+### 스칼라 소개
+* 각각 명령형과 함수형으로 구현된 'Hello World' 예제
+  * 스칼라가 지원하는 리스트, 집합, 맵, 스트림, 튜플, 옵션 등의 자료구조와 자바의 자료구조 비교
+  * 자바의 인터페이스를 대체하는 스칼라의 트레이트
+    * 트레이트는 객체를 인스턴스화할 때 메서드 상속 기능을 지원
+
+* Hello beer
+  * 고전 'Hello World' 예제를 맥주(Beer)로 바꿈
+    ```
+    Hello 2 bottles of beer
+    Hello 3 bottles of beer
+    Hello 4 bottles of beer
+    Hello 5 bottles of beer
+    Hello 6 bottles of beer
+    ```
+
+* 명령형 스칼라
+  * 명령형으로 위 문장을 출력하는 스칼라 프로그램
+    ```
+    object Beer {
+    
+        def main (args: Array[String]) {
+            var n : Int = 2
+            while (n <= 6) {
+                println(s"Hello ${n} bottles of beer") // 문자열 보간법
+                n += 1
+            }
+        }
+    }
+    ```
+    * 실행 참조
+      * https://docs.scala-lang.org/getting-started/index.html
+    * 문자열을 인수로 받는 main 메서드 (자바의 String s와 달리 s : String 이라는 문법 구조를 가짐)
+    * main 메서드는 반환값이 없어 자바에서는 void를 사용했겠지만 스칼라에서는 아무것도 선언하지 않음
+      * 보통 스칼라의 비재귀 메서드에서는 반환형식을 추론할 수 있으므로 명시적으로 반환형식을 정의하지 않아도 됨
+    * object 선언 과정
+      * 자바에서는 클래스 내에 main 메서드 선언
+      * 하지만 스칼라에서는 object로 직접 싱글턴 객체를 만들 수 있음
+      * 위 예제에서는 object로 Beer 클래스를 정의하고 동시에 인스턴스화
+      * 한 번에 단 하나의 인스턴스만 생성됨
+      * 스칼라 언어의 기능을 이용해 첫 번째 고전 디자인 패턴(싱글턴)을 보여줌
+      * object 내부에 선언된 메서드는 정적 메서드로 간주할 수 있음
+        * main 메서드 시그니처에 명시적인 static이 없는 것도 이것 때문
+    * main 메서드 바디
+      * main 바디는 자바와 비슷해 보이지만 구문이 세미콜론으로 끝나지 않음
+        * 세미콜론은 선택사항
+      * while 루프의 바디에서는 가변 변수 n을 증가시킴
+      * n값이 바뀔 때마다 미리 정의된 메서드 println 화면에 n값을 출력함
+      * println 메서드는 스칼라의 문자열 보간법(string interplation)이라는 기능을 보여줌
+        * 문자열 보간법은 문자열 자체에 변수와 표현식을 바로 삽입하는 기능
+        * 위 코드에서 s"Hello ${n} bottles of beer"라는 문자열에 변수 n을 직접 사용
+        * 자바에서는 "Hello " + n + " bottles of beer"처럼 명시적으로 문자열과 변수를 연결해야 함
+
+* 함수형 스칼라
+  * 자바 예제
+    ```
+    public class Foo {
+    
+    	public static void main(String[] args) {
+    		IntStream.rangeClosed(2, 6)
+    				.forEach(n -> System.out.println("Hello " + n + " bottles of beer"));
+    	}
+    }
+    ```
+  * 스칼라 예제
+    ```
+    object Beer {
+        def main(args: Array[String]) {
+            2 to 6 foreach {n => println(s"Hello ${n} bottles of beer")}
+        }
+    }
+    ```
+  * 스칼라 코드는 자바보다 간결
+  * 우선 스칼라에서는 ``` 2 to 6 ```이라는 표현식으로 숫자 범위를 만들 수 있음
+  * 2는 Int 형식 객체
+  * 스칼라에서는 모든 것이 객체
+  * 자바와 달리 기본형이 없음
+  * 스칼라는 자바보다 완전한 객체지향
+  * 따라서 ``` 2.to(6) ```이라고 구현할 수도 있음
+  * 하지만 인수 하나를 받는 메서드는 (위 예제처럼 점을 제외한) 인픽스 형식으로 구현할 수 없음
+  * foreach는 자바 forEach와 비슷 (스칼라는 소문자 e, 자바는 대문자 E)
+  * foreach는 범위에 사용할 수 있는 메서드로 람다 표현식을 인수로 받아 각 요소에 적용 (이번에도 인픽스 개념 사용)
+  * 람다 표현식 문법은 자바와 비슷 (다만 ``` -> ``` 대신 ``` => ``` 사용)
+  * 처음 예제의 while 루프처럼 변수를 갱신하지 않으므로 위 예제는 함수형
+    * 스칼라에서 '익명 함수'나 '클로저' 등의 용어는 자바의 람다 표현식과 비슷한 의미
+
+* 기본 자료구조 : 리스트, 집합, 맵, 튜플, 스트림, 옵션
+  * 대부분의 프로그래머는 자료를 다루고 저장하는 기능을 사용해야 함
+  * 컬렉션 만들기
+    * 맵을 만드는 코드
+      ```
+      val authorsToAge = Map("Raoul" -> 23, "Mario" -> 40, "Alan" -> 53)
+      ```
+      * ``` -> ``` 문법으로 키를 값에 대응시켜 맵을 만들 수 있음
+      * 자바 코드와 비교
+        ```
+        Map<String, Integer> authorsToAge = new HashMap<>();
+        authorsToAge.put("Raoul", 23);
+        authorsToAge.put("Mario", 40);
+        authorsToAge.put("Alan", 53);
+        ```
+      * 변수 authorsToAge의 형식을 지정하지 않음
+        * ``` val authorsToAge : Map[String, Int] ```처럼 명시적으로 형식을 지정할 수 있지만  
+          스칼라는 자동으로 변수형을 추론하는 기능이 존재
+        * 스칼라는 코드를 정적으로 확인
+          * 즉 모든 변수의 형식은 컴파일 할 때 결정됨
+      * ``` var ``` 대신 ``` val ```이라는 키워드를 사용함
+        * ``` val ``` 변수가 읽기 전용
+          * 변수에 값을 할당할 수 없음을 의미 (자바의 final과 같음)
+        * ``` var ``` 라는 키워드는 읽고 쓸 수 있는 변수를 가리킴
+    * 리스트(단방향 연결리스트), 집합(중복된 요소가 없는)을 만드는 코드
+      ```
+      val authors = List("Raoul", "Mario", "Alan")
+      val numbers = Set(1, 1, 2, 3, 5, 8)
+      ```
+      * authors 변수는 세 개의 요소, numbers 변수는 다섯 개의 요소 포함
+  * 불변과 가변
+    * 지금까지 만든 컬렉션은 기본적으로 불변(immutable)
+      * 즉, 일단 컬렉션을 만들면 변경할 수 없음
+      * 컬렉션이 불변이므로 프로그램에서 언제 컬렉션을 사용하든 항상 같은 요소를 갖게 되고 함수형 프로그래밍에서 유용하게 활용됨
+    * 스칼라의 불변 컬렉션 갱신
+      * 영속이라는 용어를 스칼라의 컬렉션에도 적용할 수 있음
+      * 영속(persistent) - 저장된 값이 다른 누군가에 의해 영향을 받지 않는 상태
+    * 기존 버전과 가능한 한 많은 자료를 공유하는 새로운 컬렉션을 만드는 방법으로 자료구조를 갱신함
+    * 결과적으로 암묵적인 데이터 의존성을 줄일 수 있음
+    * 언제, 어디서 컬렉션(또는 다른 공유된 자료구조 등)을 갱신했는지 크게 신경쓰지 않아도 됨
+    * 예제 코드
+      ```
+      val numbers = Set(2, 5, 3)
+      val newNumbers = numbers + 8 // 여기서 +는 집합에 8을 더하는 메서드의 연산 결과로 새로운 Set 객체를 생성함
+      println(newNumbers) // 2, 5, 3, 8
+      println(numbers) // 2, 5, 3
+      ```
+      * 숫자 집합은 바뀌지 않음
+        * 대신 새로운 요소가 추가된 새로운 집합이 생성됨
+    * 스칼라에서는 불변 컬렉션만 사용하도록 강제하는 것은 아니며 단지 불변성을 쉽게 적용할 수 있도록 도와주는 것
+    * 패키지 ``` scala.collection.mutable ```에서는 가변 버전의 컬렉션을 제공
+    * 변경불가와 불변
+      * 자바에서는 변경불가(unmodifiable) 컬렉션을 만드는 다양한 방법을 제공
+      * 다음 코드에서 newNumbers는 numbers 집합에서 읽기 전용 값으로 요소를 추출한 변수
+        ```
+        Set<Integer> numbers = new HashSet<>();
+        Set<Integer> newNumbers = Collections.unmodifiableSet(numbers);
+        ```
+      * 따라서 newNumbers 변수에는 새로운 요소를 추가할 수 없음
+        * 하지만 변경불가 컬렉션은 값을 고칠 수 있는 컬렉션의 래퍼의 불과
+        * 즉, numbers 변수를 이용하면 새로운 요소를 추가할 수 있음
+      * 반면 불변(immutable) 컬렉션은 얼마나 많은 변수가 컬렉션을 참조하는가와 관계없이 컬렉션을 절대 바꿀 수 없다는 점이 다름
+      * 영속 자료구조를 변경하면 자신의 기존 버전을 보존
+        * 결과적으로 영속 자료구조를 변경하면 갱신된 새로운 자료구조가 생성됨
+  * 컬렉션 사용하기
+    * 스칼라의 컬렉션 동작은 스트림 API와 비슷
+      * 예를 들어 filter와 map이 등장
+        ```
+        val fileLines = Source.fromFile("data.txt").getLines.toList()
+        val linesLongUpper = fileLines.filter(l => l.length() > 10).map(l => l.toUpperCase())
+        ```
+        * 첫 번째 행은 기본적으로 파일의 모든 행을 문자열 행으로 변환함
+          * 자바의 Files.readAllLines와 비슷
+        * 두 번째 행은 두 연산의 파이프라인을 생성함
+          * filter 연산 : 길이가 10 이상인 행만 선택
+          * map 연산 : 긴 행을 대문자로 변환함
+        * 다음처럼 구현 가능
+          ```
+          val linesLongUpper = fileLines filter (_.length() > 10) map(_.toUpperCase())
+          ```
+          * 위 코드에서는 인픽스 개념과 언더스코어를 사용
+            * 언더스코어는 인수로 대치됨
+            * 즉, 이 코드에서 ``` _.length()```는 ``` l => l.length() ```로 해석할 수 있음 
+            * filter와 map으로 전달된 함수에서 언더스코어는 처리되는 행으로 바운드 됨
+    * 스칼라의 컬렉션 API에서는 이 외에도 많은 유용한 연산을 제공함
+      * 참조 : https://docs.scala-lang.org/overviews/collections/introduction.html
+      * 스칼라의 API는 스트림 API에 비해 풍부한 기능을 제공함
+        * 예를 들면 두 리스트의 요소를 합치는 지핑(zipping)이라는 연산 제공
+    * 자바에서는 스트림의 parallel을 호출해서 파이프라인을 병렬로 실행할 수 있음
+      * 스칼라도 par라는 메서드로 비슷한 기능을 제공
+        ```
+        val linesLongUpper = fileLines.par filter (_.length() > 10) map(_.toUpperCase())
+        ```
+  * 튜플
+    * 자바 프로그래머를 괴롭히는 기능 중 하나인 튜플(tuple)
+      * 예를 들어 사람의 이름과 전화번호를 그룹화하는 튜플을 만들려고 함
+      * 새로 클래스를 만들고 객체로 인스턴스화하지 않고  
+        ``` ("Raoul, " + 44 007007007), ("Alan, " + 44 003133700) ``` 같은 식으로 바로 튜플을 만들면 좋을 것
+      * 안타깝게도 자바는 튜플을 지원하지 않음
+        * 따라서 직접 자료구조를 만들어야 함
+        * 간단한 Pair 클래스 예제
+          ```
+          public class Pair<X, Y> {
+              public final X x;
+              public final Y y;
+             
+              public Pair(X x, Y y) {
+                  this.x = x;
+                  this.y = y;
+              }
+          }
+          ```
+          * 선언 후 명시적으로 클래스를 인스턴스화
+            ```
+            Pair<String, String> raoul = new Pair<>("Raoul", "+ 44 007007007");
+            Pair<String, String> alan = new Pair<>("Alan", "+ 44 003133700");
+            ```
+            * 두 개의 요소를 갖는 쌍은 구현, 세 개의 요소를 그룹화한 튜플은 어떻게 해야 할까?
+              * 이를 일반화해서 임의 요소를 그룹화하는 튜플은 어떻게 만들 수 있을까?
+              * 결과적으로 자바로 튜플을 구현한다는 것은 쉽지 않은 작업, 프로그램의 가독성과 유지보수성을 떨어뜨림
+    * 스칼라는 임의 크기(최대 23개 요소를 그룹화하는)의 튜플을 제공함
+      * 예를 들어 다음과 같은 방법으로 튜플을 만들 수 있음
+        ```
+        val book = (2018 "Modern Java in Action", "Manning") // (int, String, String) 형식의 튜플
+        val numbers = (42, 1337, 0, 3, 14) // (int, int, int, int) 형식의 튜플
+        ```
+      * _1, _2 등의 접근자로 튜플의 요소에 접근할 수 있음
+        * 접근자는 1부터 시작함
+        ```
+        println(book._1)
+        println(numbers._4)
+        ```
+  * 스트림
+    * 리스트, 집합, 맵, 튜플은 적극적으로(즉시) 평가되었음
+      * 지금까지의 자바 스트림은 요청할 때만 평가되었음(게으른 평가)
+      * 이러한 특성 덕분에 메모리 오버플로 없이 무한 시퀀스를 표현할 수 있었음
+    * 스칼라에서도 스트림이라는 게으르게 평가되는 자료구조를 제공
+      * 스칼라의 스트림은 자바의 스트림보다 다양한 기능을 제공
+      * 스칼라의 스트림은 이전 요소가 접근할 수 있도록 기존 계산값을 기억함
+      * 또한 인덱스를 제공, 리스트처럼 인덱스로 스트림의 요소에 접근할 수 있음
+      * 이러한 기능이 추가되면서 스칼라의 스트림은 자바의 스트림에 비해 메모리 효율성이 조금 떨어짐
+      * 이전 요소를 참조하려면 요소를 '기억(캐시)'해야 하기 때문
+  * 옵션
+    * 스칼라의 Option은 자바의 Optional과 같은 기능 제공
+    * 사용자는 메서드의 시그니처만 보고도 Optional 값이 반환될 수 있는지 여부를 알 수 있음
+    * null 대신 Optional을 사용하면 null 포인터 예외를 방지할 수 있음
+    * 사람의 나이가 최소 나이보다 클 때 보험회사 이름을 반환하는 코드에 Optional 활용
+      ```
+      public String getCarInsuranceName(Optional<Person> person, int minAge) {
+          return person
+          		.filter(p -> p.getAge() >= minAge)
+          		.flatMap(Person::getCar)
+          		.flatMap(Car::getInsurance)
+          		.map(Insurance::getName)
+          		.orElse("Unknown");
+      }
+      ```
+      * 스칼라에서는 Optional과 비슷한 방식으로 Option을 사용할 수 있음
+        ```
+        def getCarInsuranceName(person: Option[Person], minAge: Int) =
+            person
+                .filter(_.getAge() >= minAge)
+                .flatMap(_.getCar)
+                .flatMap(_.getInsurance)
+                .map(_.getName)
+                .getOrElse("Unknown")
+        ```
+      * 자바에서는 orElse라는 메서드를 사용, 스칼라에서는 getOrElse라는 메서드 사용라는 점을 제외하면 두 코드는 구조가 같음
+        * 자바의 개념을 곧바로 다른 프로그래밍 언어에 적용할 수 있음
+        * 안타깝게도 자바와의 호환성 때문에 스칼라에도 null이 존재함
+        * 하지만 되도록 null을 사용하지 않는 것이 좋음
+      * 위 코드에서 괄호가 있는 ``` _.getCar() ``` 대신 ``` _.getCar ```를 사용
+        * 스칼라에서는 인수가 없는 메서드를 호출할 때 괄호를 생략할 수 있음
+
+### 함수
+* 스칼라의 함수는 어떤 작업을 수행하는 일련의 명령어 그룹
+  * 명령어 그룹을 쉽게 추상화할 수 있는 것도 함수 덕분이며 동시에 함수는 함수형 프로그래밍의 중요한 기초
+* 자바에서는 클래스와 관련된 함수에 메서드라는 이름이 사용됨
+  * 익명 함수의 일종인 람다 표현식
+  * 스칼라에서는 자바에 비해 풍부한 함수 기능을 제공
+    * 함수 형식
+      * 자바 함수 디스크립터의 개념을 표현하는 편의 문법
+      * 즉 함수형 인터페이스에 선언된 추상 메서드의 시그니처를 표현하는 개념
+    * 익명 함수
+      * 자바의 람다 표현식과 달리 비지역 변수 기록에 제한을 받지 않음
+    * 커링 지원
+      * 커링은 여러 인수를 받는 함수를 일부 인수를 받는 여러 함수로 분리하는 기법
+
+* 스칼라의 일급 함수
+  * 스칼라의 함수는 일급값(first-class value)
+    * 즉, Integer나 String처럼 함수를 인수로 전달하거나, 결과로 반환하거나, 변수에 저장할 수 있음
+    * 자바의 메서드 참조와 람다 표현식도 일급 함수
+  * 스칼라의 일급 함수 예제
+    * 사람들이 우리에게 보낸 트윗 문자열 리스트가 있다고 가정
+    * 이때 트윗에 Java가 포함되어 있거나 짧은 문자열 등의 조건으로 트윗을 필터링하려 함
+    * 이런 두 가지 조건을 프레디케이트(predicate)로 표현할 수 있음
+      * predicate는 Boolean을 반환하는 함수
+      ```
+      def isJavaMentioned(tweet: String) : Boolean = tweet.contains("Java")
+      def isShortTweet(tweet: String) : Boolean = tweet.length() < 20
+      ```
+      * 이들 메서드를 스칼라에서 기본 제공하는 filter로 바로 전달 가능 (자바에서 메서드 참조로 이들을 전달했던 것처럼)
+        ```
+        val tweets = List(
+            "I love the new features in Java 8",
+            "How's it going?",
+            "An SQL query walks into a bar, sees two tables and says 'Can I join you?'"
+        )
+        tweets.filter(isJavaMentioned).foreach(println)
+        tweets.filter(isShortTweet).foreach(println)
+        ```
+        * 스칼라에서 제공하는 내장 메서드 filter의 시그니처
+          ``` def filter[T](p: (T) => Boolean): List[T] ```
+          * 위 코드에서 파라미터 p의 형식은 (T) => Boolean
+          * 자바에서는 함수형 인터페이스를 사용
+          * ``` (T) => Boolean ```은 T라는 형식의 객체를 받아 Boolean을 반환함을 의미
+          * 자바로는 ``` Predicate<T> ``` 또는 ``` Function<T, Boolean> ```과 같은 의미
+          * 따라서 p의 형식은 isJavaMentioned, isShortTweet의 시그니처와 일치하므로 이들을 filter의 인수로 전달할 수 있음
+          * 자바 언어 설계자는 기존 버전의 언어와 일관성(consistency)을 유지할 수 있도록 이와 같은 함수 형식을 지원하지 않기로 결정함
+            * 언어의 새로운 버전에 새로운 문법을 너무 많이 추가하면 코드를 분석하는 데 부담이 발생한다는 이유도 있음
+
+* 익명 함수와 클로저
+  * 스칼라도 익명 함수(anonymous function)의 개념을 지원
+  * 스칼라는 람다 표현식과 비슷한 문법을 제공
+  * 트윗이 긴지를 확인하는 익명 함수를 isLongTweet이라는 변수로 할당하는 예제
+    ```
+    val isLongTweet : String => Boolean = // String을 Boolean으로 반환하는 함수 형식의 변수
+        (tweet : String) => tweet.length() > 60 // 익명 함수
+    ```
+    * 자바의 람다 표현식으로 함수형 인터페이스의 인스턴스를 만들 수 있음 (스칼라도 비슷한 방식을 지원)
+    * 위 코드는 apply 메서드의 구현을 제공하는 scala.Function1(한 개의 인수를 받는 함수) 형식의 익명 클래스를 축약한 것
+      ```
+      val isLongTweet : String => Boolean =
+          new Function1[String, Boolean] {
+              def apply(tweet: String): Boolean = tweet.length() > 60 }
+      ```
+      * isLongTweet 변수는 Function1 형식의 객체를 저장하므로 다음처럼 apply 메서드를 호출할 수 있음
+        ``` isLongTweet.apply("A very short tweet") // false를 반환 ```
+      * 자바로는 다음처럼 구현
+        ```
+        Function<String, Boolean> isLongTweet = (String s) -> s.length() > 60;
+        boolean long = isLongTweet.apply("A very short tweet");
+        ```
+    * 자바에서는 람다 표현식을 사용할 수 있도록 Predicate, Function, Consumer 등의 내장 함수형 인터페이스 제공
+      * 마찬가지로 스칼라는 트레이트를 지원
+      * 스칼라에서는 Function0(인수가 없으며 결과를 반환)에서 Function22(22개 인수를 받음)를 제공 (모두 apply 메서드를 정의)
+    * 스칼라에서 보통 함수를 호출하는 것처럼 applly 메서드를 호출할 수 있음
+      ``` isLongTweet("A very short tweet") // false를 반환 ```
+      * 컴파일러는 f(a)라는 호출을 자동으로 f.apply(a)로 반환함
+      * 즉, 일반적으로 컴파일러는 f(a1, ..., an)을 f.apply(a1, ..., an)으로 변환할 수 있으며  
+        여기서 f는 apply 메서드를 지원하는 객체
+        * apply의 인수 개수는 제한이 없음
+  * 클로저
+    * 클로저(closure)란 함수의 비지역 변수를 자유롭게 참조할 수 있는 함수의 인스턴스
+    * 하지만 자바의 람다 표현식에는 람다가 정의된 메서드의 지역 변수를 고칠 수 없다는 제약이 있음
+      * 이들 변수는 암시적으로 final로 취급됨
+      * 즉 람다는 변수가 아닌 값을 닫음
+    * 스칼라의 익명 함수는 값이 아니라 변수를 캡처할 수 있음
+      * 예제 코드
+        ```
+        def main(args: Array[String]) {
+            var count = 0
+            val inc = () => count += 1
+            inc()          // count를 캡처하고 증가시키는 클로저
+            println(count) // 1 출력
+            inc()
+            println(count) // 2 출력
+        }
+        ```
+      * 자바로 구현한 코드 (count는 암시적으로 final이 되므로 컴파일 에러 발생)
+        ```
+        public static void main(String[] args) {
+            int count = 0;
+            Runnable inc = () -> count += 1; // count는 명시적으로 final 또는 final에 준하는 변수여야 함
+            inc.run();
+            System.out.println(count);
+            inc.run();
+        }
+        ```
+      * 프로그램을 쉽게 유지보수하고 병렬화할 수 있도록 변화를 피해야 함
+        * 따라서 꼭 필요할 때만 클로저 기능을 사용하는 것이 바람직
+
+* 커링
+  * x, y라는 두 인수를 가진 f라는 함수가 있을 때 이는 하나의 인수를 받는 g라는 함수  
+    그리고 g라는 함수는 다시 나머지 인수를 받는 함수로 반환되는 상황으로 볼 수 있음
+    * 여러 인수를 가진 함수를 커링으로 일반화할 수 있음
+    * 즉, 여러 인수를 받는 함수를 인수의 일부를 받는 여러 함수로 분할할 수 있음
+    * 스칼라에서는 기존 함수를 쉽게 커리할 수 있는 방법을 제공함
+    * 자바 예제
+      * 두 정수를 곱하는 간단한 메서드 정의
+      ```
+      static int multiply(int x, int y) {
+          return x * y;
+      }
+      int r = multiply(2, 10);
+      ```
+      * 이 함수는 전달된 모든 인수를 사용
+      * 다른 함수를 반환하도록 위의 multiply 메서드를 분할
+        ```
+        static Function<Integer, Integer> multiplyCurry(int x) {
+            return (Integer y) -> x * y;
+        }
+        ```
+        * multiplyCurry가 반환하는 함수는 x와 인수 y를 곱한 값(정수값)을 캡처
+        * 다음처럼 multiplyCurry를 연결해서 각 요소에 2를 곱할 수 있음
+          ```
+          Stream.of(1, 3, 5, 7)
+              .map(multiplyCurry(2))
+              .forEach(System.out::println);
+          ```
+          * 위 코드를 실행하면 2, 6, 10, 14가 출력됨
+          * map은 인수로 Function을 받고 multiplyCurry가 Function을 반환하므로 위 코드는 문제없이 작동함
+    * 자바에서 함수를 커리 형식으로 분할하려면 조금 복잡한 과정을 거쳐야 함
+      * 특히 함수의 인수가 많을수록 복잡해짐
+      * 스칼라는 이 과정을 자동으로 처리하는 특수 문법 제공
+      * 스칼라에서는 전형적인 multiply 메서드를 다음처럼 정의할 수 있음
+        ```
+        def multiply(x: Int, y: Int) = x * y
+        var r = multiply(2, 10)
+        ```
+        * 커리 결과
+          ```
+          def multiplyCurry(x: Int)(y: Int) = x * y   // 커리된 함수 정의
+          var r = multiplyCurry(2)(10)                // 커리된 함수 호출
+          ```
+          * ``` (x: Int)(y: Int) ``` 같은 문법으로 multiplyCurry 메서드는 Int 파라미터 하나를 포함하는 인수 리스트 둘을 받음
+          * 반면 multiply는 Int 파라미터 둘로 구성된 리스트 하나를 인수로 받음
+          * multiplyCurry를 호출하면 어떻게 될까?
+          * Int(파라미터 x) 하나로 multiplyCurry를 처음 호출 (multiplyCurry(2))하면  
+            파라미터 y를 인수로 받는 다른 함수를 반환하며 이를 x 캡처값(여기서는 2)에 곱함
+          * 모든 인수를 사용하지 않았으므로 이 상황을 '함수가 부분 적용되었다'고 표현함
+          * 두 번째로 함수를 호출하면 x와 y를 곱함
+          * 즉 multiplyCurry를 처음 호출한 결과를 내부 변수에 저장했다가 재사용함
+            ```
+            val multiplyByTwo : Int => multiplyCurry(2)
+            val r = multiplyByTwo(10)                    // 20
+            ```
+            * 자바와 달리 스칼라에서는 커리된 함수를 직접 제공할 필요가 없음
+            * 스칼라에서는 함수가 여러 커리된 인수 리스트를 포함하고 있음을 가리키는 함수 정의 문법을 제공하기 때문
+
+### 클래스와 트레이트
+* 스칼라의 클래스와 인터페이스는 자바에 비해 더 유연함을 제공
+
+* 간결성을 제공하는 스칼라의 클래스
+  * 스칼라는 완전한 객체지향 언어이므로 클래스를 만들고 객체로 인스턴스화 할 수 있음
+    * 스칼라는 자바에서 클래스를 만들고 인스턴스화하는 방법과 문법적으로 비슷한 구조를 제공
+    * 예를 들어 다음은 스칼라의 Hello 클래스 정의 코드
+      ```
+      class Hello {
+          def sayThankYou() {
+              println("Thanks for reading our book")
+          }
+      }
+      val h = new Hello()
+      h.sayThankYou()
+      ```
+  * 게터와 세터
+    * 필드 리스트만 정의하는 자바 클래스를 만들어본 적이 있는가?
+      * 이런 클래스에는 생성자와 필드 수 만큼의 게터와 세터가 선언됨
+      * 엔터프라이즈 자바 앱의 클래스에서 흔히 이 같은 수많은 양의 코드를 발견할 수 있음
+      * Student 클래스 예시
+        ```
+        public class Student {
+        	private String name;
+        	private int id;
+        
+        	public String getName() {
+        		return name;
+        	}
+        
+        	public Student setName(String name) {
+        		this.name = name;
+        		return this;
+        	}
+        
+        	public int getId() {
+        		return id;
+        	}
+        
+        	public Student setId(int id) {
+        		this.id = id;
+        		return this;
+        	}
+        }
+        ```
+        * 자바에서는 생성자를 정의하고 필드를 초기화했으며 두 개의 게터와 두 개의 세터도 정의함
+          * 간단한 클래스인데도 20행이 넘는 코드가 필요함
+          * IDE와 기타 도구를 이용해 자동으로 코드를 생성할 수 있음
+          * 하지만 실제 비즈니스 로직을 처리하는 데 별 도움이 되지 않는 수많은 코드가 존재한다는 사실은 변하지 않음
+        * 스칼라에서는 생성자, 게터, 세터가 암시적으로 생성되므로 코드가 훨씬 단순해짐
+          ```
+          class Student(var name: String, var id: Int)
+          val s = new Student("Raoul", 1)  // Student 객체 초기화
+          println(s.name)                  // 이름을 얻어 Raoul 출력
+          s.id = 1337                      // id 설정
+          println(s.id)                    // 1337 출력
+          ```
+
+* 스칼라 트레이트와 자바 인터페이스
+  * 스칼라는 트레이트라는 유용한 추상 기능 제공
+    * 스칼라의 트레이트는 자바의 인터페이스를 대체
+    * 트레이트로 추상 메서드와 기본 구현을 가진 메서드 두 가지를 모두 정의할 수 있음
+    * 자바의 인터페이스처럼 트레이트는 다중 상속을 지원하므로 자바의 인터페이스와 디폴트 메서드 기능이 합쳐진 것으로 이해할 수 있음
+    * 트레이트는 추상 클래스와 같다고 이해할 수 없음
+      * 트레이트는 클래스와 달리 다중 상속될 수 있기 때문
+      * 하지만 자바 8에서는 디폴트 메서드 덕분에 동작을 다중 상속할 수 있게 되었지만  
+        스칼라의 트레이트와는 달리 상태는 다중 상속할 수 없음
+    * Sized라는 트레이트 정의
+      * Sized라는 트레이트는 size라는 가변 필드와 기본 구현을 제공하는 isEmpty 메서드를 포함
+        ```
+        trait Sized {
+            var size : Int = 0        // size 필드
+            def isEmpty() = size == 0 // 기본 구현을 제공하는 isEmpty 메서드
+        }
+        ```
+        * 트레이트를 클래스와 조합해 선언 가능
+          * 항상 0의 크기를 갖는 Empty 클래스를 정의하는 예제
+            ```
+            class Empty extends Sized      // 트레이트 Sized에서 상속받은 클래스
+            println(new Empty().isEmpty()) // true 출력
+            ```
+        * 객체 트레이트는 인스턴스화 과정에서도 조합할 수 있음 (하지만 조합 결과는 컴파일할 때 결정됨)
+          * 예를 들어 Box 클래스를 만든 다음에 어떤 Box 인스턴스는 트레이트 Sized가 정의하는 동작을 지원하도록 결정할 수 있음
+            ```
+            class Box
+            val b1 = new Box() with Sized // 객체를 인스턴스화할 때 트레이트를 조합함
+            println(b1.isEmpty())         // true 출력
+            val b2 = new Box()
+            b2.isEmpty()                  // 컴파일 에러 : Box 클래스 선언이 Sized를 상속하지 않았음
+            ```
+    * 같은 시그니처를 갖는 메서드나 같은 이름을 갖는 필드를 정의하는 트레이트를 다중 상속하면  
+      자바의 디폴트 메서드와 비슷한 제한을 두어 문제를 해결
+
+### 정리
+* 자바와 스칼라는 객체지향과 함수형 프로그래밍 모두를 하나의 프로그래밍 언어로 수용
+  * 두 언어 모두 JVM에서 실행되며 넓은 의미에서 상호운용성을 가짐
+* 스칼라는 자바처럼 리스트, 집합, 맵, 스트림, 옵션 등의 추상 컬렉션을 제공
+  * 튜플도 추가로 제공
+* 스칼라는 자바에 비해 풍부한 함수 관련 기능을 제공
+  * 함수 형식, 지역 변수에 접근할 수 있는 클로저, 내장 커링 형식 등을 지원
+* 스칼라의 클래스는 암묵적으로 생성자, 게터, 세터를 제공함
+* 스칼라는 트레이트를 지원함
+  * 트레이트는 필드와 디폴트 메서드를 포함할 수 있는 인터페이스
+
+### [quiz]
+---
