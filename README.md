@@ -12486,3 +12486,279 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
       ```
       * 따라서 ``` Collectors.<Car>toList() ``` 대신 ``` Collectors.toList() ```를 사용할 수 있음
 ---
+
+## APPENDIX B : 기타 라이브러리 업데이트
+
+### 컬렉션
+* 추가 메서드
+  * 자바 설계자는 많은 새로운 메서드를 컬렉션 인터페이스와 클래스에 추가
+    * 추가된 대부분의 메서드는 디폴트 메서드
+    * 추가 목록
+      * Map
+        * getOrDefault
+        * forEach
+        * compute
+        * computeIfAbsent
+        * computeIfPresent
+        * merge
+        * putIfAbsent
+        * remove(key, value)
+        * replace
+        * replaceAll
+      * Iterable
+        * forEach
+        * spliterator
+      * Iterator
+        * forEachRemaining
+      * Collection
+        * removeIf
+        * stream
+        * parallelStream
+      * List
+        * replaceAll
+        * sort
+      * BitSet
+        * Stream
+  * 맵
+    * Map은 다양한 편의 메서드가 추가되면서 가장 많이 업데이트된 인터페이스
+      * 예를 들어 키에 매핑되는 값이 있는지 여부를 확인하는 기존의 get 메서드를 getOrDefault로 대신할 수 있음
+        * getOrDefault는 키에 매핑되는 값이 없으면 기본값을 반환
+        * 기존 코드
+          ```
+          Map<String, Integer> carInventory = new HashMap<>();
+          Integer count = 0;
+          if (map.containsKey("Aston Martin")) {
+              count = map.get("Aston Martin");
+          }
+          ```
+          * 대체 코드
+            ``` Integer count = map.getOrDefault("Aston Martin", 0); ```
+          * 위 코드는 키에 매핑되는 값이 없을 때만 예상대로 작동
+            * 예를 들어 키가 명시적으로 null로 매핑되어 있으면 기본값이 아니라 null이 반환됨
+      * computeIfAbsent도 유용한 메서드
+        * computeIfAbsent를 이용하면 간편하게 캐싱 패턴을 활용할 수 있음
+        * 다양한 웹사이트에서 데이터를 얻어 처리해야 한다고 가정
+          * 이때 데이터를 캐시할 수 있다면 비용이 빘나 데이터를 얻어오는 과정을 생략할 수 있음
+            ```
+            public String getData(String url) {
+                String data = cache.get(url);
+                if (data == null) {       // 데이터가 이미 캐시되어 있는지 확인
+                    data = getData(url);
+                    cache.put(url, data); // 캐시되어 있는 데이터가 없으면 데이터를 가져와 나중에 사용할 수 있도록 맵에 캐시
+                }
+                return data;
+            }
+            ```
+            * 대체 코드
+              ```
+              public String getData(String url) {
+                  return cache.computeIfAbsent(url, this::getData);
+              }
+              ```
+  * 컬렉션
+    * removeIf 메서드로 프레디케이트와 일치하는 모든 요소를 컬렉션에서 제거할 수 있음
+      * removeIf 메서드는 스트림 API의 filter와는 다름
+      * 스트림 API의 filter 메서드는 새로운 스트림을 생성하므로 현재 스트림이나 소스를 갱신하지 않음
+  * 리스트
+    * replaceAll 메서드는 리스트의 각 요소에 주어진 연산자를 리스트에 적용한 결과로 대체
+      * replaceAll 메서드는 스트림의 map과 비슷하지만 새로운 요소를 생성하는 map과 달리 리스트의 요소를 갱신한다는 점이 다름
+      * 예를 들어 다음 코드는 리스트가 바뀌면서 ``` [2, 4, 6, 8, 10] ```을 출력함
+        ```
+        List<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
+        numbers.replaceAll(x -> x * 2);
+        System.out.println(numbers);  // [2, 4, 6, 8, 10] 출력
+        ```
+
+* Collections 클래스
+  * Collections는 오랫동안 컬렉션 관련 동작을 수행하고 반환하는 역할을 담당해온 클래스
+    * Collections는 불변의(unmodifiable), 동기화된(synchronized), 검사된(checked), 빈(empty)  
+      NavigableMap과 NavigableSet을 반환할 수 있는 새로운 메서드를 포함
+    * 또한 동적 형식 검사에 기반을 둔 Queue 뷰를 반환하는 checkedQueue라는 메서드도 제공
+
+* Comparator
+  * Comparator 인터페이스는 디폴트 메서드와 정적 메서드를 추가로 제공
+  * 추가된 인스턴스 메소드
+    * reversed
+      * 현재 Comparator를 역순으로 반전시킨 Comparator를 반환
+    * thenComparing
+      * 두 객체가 같을 때 다른 Comparator를 사용하는 Comparator를 반환
+    * thenComparingInt, thenComparingDouble, thenComparingLong
+      * thenComparing과 비슷한 동작을 수행하지만 기본형에 특화된 함수를 인수로 받음
+        * ToIntFunction, ToDoubleFunction, ToLongFunction
+  * 추가된 정적 메서드
+    * comparingInt, comparingDouble, comparingLong
+      * comparing과 비슷한 동작을 수행하지만 기본형에 특화된 함수를 인수로 받음
+        * ToIntFunction, ToDoubleFunction, ToLongFunction
+    * naturalOrder
+      * Comparable 객체에 자연 순서를 적용한 Comparable 객체를 반환
+    * nullsFirst
+      * null 객체를 null이 아닌 객체보다 작은 값으로 취급하는 Comparator를 반환
+    * nullsLast
+      * null 객체를 null이 아닌 객체보다 큰 값으로 취급하는 Comparator를 반환
+    * reverseOrder
+      * ``` naturalOrder().reversed() ```와 같음
+
+### 동시성
+* CompletableFuture도 동시성 업데이트 중 하나
+
+* 아토믹
+  * java.util.concurrent.atomic 패키지는 AtomicInteger, AtomicLong 등 단일 변수에 아토믹 연산을 지원하는 숫자 클래스 지원
+    * getAndUpdate
+      * 제공된 함수의 결과를 현재값에 아토믹하게 적용하고 기존값을 반환
+    * updateAndGet
+      * 제공된 함수의 결과를 현재값에 아토믹하게 적용하고 업데이트된 값을 반환
+    * getAndAccumulate
+      * 제공된 함수를 현재값과 인수값에 적용하고 기존값을 반환
+    * accumulateAndGet
+      * 제공된 함수를 현재값과 인수값에 적용하고 업데이트된 값을 반환
+  * atomicInteger와 10 중 작은 수를 아토믹으로 설정하는 예제
+    ``` int min =  atomicInteger.accumulateAndGet(10, Integer::min); ```
+
+* Adder와 Accumulator
+  * 자바 API는 여러 스레드에서 읽기 동작보다 갱신 동작을 많이 수행하는 상황이라면  
+    Atomic 클래스 대신 ``` LongAdder, LongAccumulator, DoubleAdder, DoubleAccumulator ```를 사용하라고 권고
+    * 예를 들면 통계작업
+  * 이들 클래스는 동적으로 커질 수 있도록 설계되었으므로 스레드 간의 경쟁을 줄일 수 있음
+  * LongAdder, DoubleAdder는 덧셈 연산을 지원하며 LongAccumulator와 DoubleAccumulator는 제공된 함수로 값을 모음
+  * 예를 들어 다음처럼 LongAdder로 여러 값의 합계를 계산할 수 있음
+    ```
+    LongAdder adder = new LongAdder();  // 디폴트 생성자에서 초기 sum값을 0으로 설정
+    adder.add(10);                      // 여러 스레드에서 어떤 작업을 수행
+    // ...
+    long sum = adder.sum();             // 어떤 시점에서 합계를 구함
+    ```
+  * 또는 다음처럼 LongAccumulator 사용
+    ```
+    LongAccumulator acc = new LongAccumulator(Long::sum, 0);
+    acc.accumulate(10);       // 여러 스레드에서 값을 누적
+    // ...
+    long result = acc.get();  // 특정 시점에서 결과를 얻음
+    ```
+
+* ConcurrentHashMap
+  * ConcurrentHashMap은 동시 실행 환경에 친화적은 새로운 HashMap
+    * ConcurrentHashMap은 내부 자료구조의 일부만 잠근 상태로 동시 덧셈이나 갱신 작업을 수행할 수 있는 기능을 제공
+    * 따라서 기존의 동기화된 HashTable에 비해 빠른 속도로 읽기 쓰기 연산을 수행
+  * 성능
+    * 성능을 개선하면서 ConcurrentHashMap의 내부 구조가 바뀜
+    * 보통 맵의 객체는 키로 생성한 해시코드로 접근할 수 있는 버킷에 저장됨
+    * 하지만 키가 같은 해시코드를 반환하는 상황에서는 O(n) 성능의 리스트로 버킷을 구현해야 하므로 성능이 나빠짐
+    * 자바 8에서 버킷이 너무 커지면 동적으로 리스트를 정렬 트리로(O(long(n))의 성능으로) 교체
+    * 키가 Comparable일때만(예를 들면 String이나 Number 클래스) 이 기능을 사용할 수 있음
+  * 스트림 같은 연산
+    * ConcurrentHashMap은 마치 스트림을 연상시키는 세 종류의 연산을 지원
+      * forEach
+        * 각 키/값 쌍에 주어진 동작을 실행
+      * reduce
+        * 제공된 리듀싱 함수로 모든 키/값 쌍의 결과를 도출
+      * search
+        * 함수가 null이 아닌 결과를 도출할 때까지 각 키/값 쌍에 함수를 적용
+    * 각 연산은 키, 값, Map.Entry, 키/값 쌍을 인수로 받는 함수를 인수로 받으며 다음과 같은 네 가지 형식의 연산을 지원
+      * 키/값 쌍으로 연산
+        * forEach
+        * reduce
+        * search
+      * 키로 연산
+        * forEachKey
+        * reduceKeys
+        * searchKeys
+      * 값으로 연산
+        * forEachValue
+        * reduceValues
+        * searchValues
+      * Map.entry 객체로 연산
+        * forEachEntry
+        * reduceEntries
+        * searchEntries
+    * 이들 연산은 ConcurrentHashMap의 상태를 잠그지 않고 요소에 직접 연산을 수행
+      * 연산에 적용된 함수는 순서에 의존하지 않아야 하며, 계산 과정에서 바뀔 수 있는 다른 객체나 값에 의존하지 않아야 함
+    * 또한 모든 연산에 병렬성 한계값(parallelism threshold)을 지정해야 함
+      * 현재 맵의 크기가 한계값보다 작다고 추정되면 순차적으로 연산을 수행
+      * 즉, 1이라는 값은 공용 스레드 풀을 사용해서 병렬성을 최대화하며 Long.MAX_VALUE라는 값은 하나의 스레드로 연산을 수행한다는 의미
+    * reduceValues를 이용해 맵의 최댓값을 찾는 예제
+      ```
+      ConcurrentHashMap<String, Integer> map = new ConcurrentHashMap<>();
+      Optional<Integer> maxValue = Optional.of(map.reduceValues(1, Integer::max));
+      ```
+    * 또한 (reduceValuesToInt, reduceKeyToLong 등) int, long, double 기본형에 특화된 reduce 연산이 있음
+  * 카운팅
+    * ConcurrentHashMap 클래스는 맵의 매핑 개수를 long으로 반환하는 mappingCount라는 새로운 메서드를 제공
+      * 맵의 매핑 개수가 정수 범위를 초과할 수 있으므로 앞으로는 int를 반환하는 size대신 mappingCount를 사용하는 것이 좋음
+  * 집합 뷰
+    * ConcurrentHashMap 클래스는 ConcurrentHashMap을 집합 뷰로 변환하는 새로운 메서드 keySet을 제공
+      * 즉, 맵을 바꾸면 집합에도 그 결과가 반영되며 마찬가지로 집합을 바꾸어도 맵에 영향을 미침
+      * 또한 newKeySet을 이용하면 ConcurrentHashMap의 원소를 포함하는 새로운 집합을 만들 수 있음
+
+### Arrays
+* parallelSort 사용하기
+  * parallelSort 메서드는 자연 순서(natural order)나 객체 배열의 추가 Comparator를 사용해 특정 배열을 병렬로 정렬하는 기능 수행
+
+* setAll, parallelSetAll 사용하기
+  * setAll은 지정된 배열의 모든 요소를 순차적으로 설정하고, parallelSetAll은 모든 요소를 병렬로 설정
+  * 두 메서드 모두 제공된 함수로 각 요소를 계산하는데, 이 함수는 요소 인덱스를 받아 해당 값을 반환
+  * parallelSetAll은 병렬로 실행되므로 parallelSetAll에 전달하는 함수는 부작용이 없어야 함
+    * 예를 들어 다음은 setAll 메서드로 ``` 0, 2, 4, 6, ... ``` 같은 값을 만드는 예제
+      ```
+      int[] evenNumbers = new int[10];
+      Arrays.setAll(evenNumbers, i -> i * 2);
+      ```
+
+* parallelPrefix 사용하기
+  * parallelPrefix 메서드는 제공된 이항 연산자를 이용해 배열의 각 요소를 병렬로 누적하는 동작을 수행
+  * ``` 1, 2, 3, 4, 5, 6, 7 ... ``` 형식의 값을 만드는 예제
+    ```
+    int[] ones = new int[10];
+    Arrays.fill(ones, 1);
+    Arrays.parallelPrefix(ones, (a, b) -> a + b); // ones는 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    ```
+
+### Number와 Math
+* Number
+  * Number 클래스에 추가된 메서드
+    * Short, Integer, Long, Float, Double 클래스에는 정적 메서드 sum, min, max가 추가됨
+    * Integer와 Long 클래스에는 부호가 없는 값을 처리하는  
+      compareUnsigned, divideUnsigned, remainderUnsigned, toUnsignedString 등의 메서드가 추가됨
+    * Integer와 Long 클래스에는 문자열을 부호가 없는 int나 long으로 파싱하는  
+      정적 메서드 parseUnsignedInt, parseUnsignedLong이 추가됨
+    * Byte와 Short 클래스는 인수를 비부호 int나 long으로 변환하는 toUnsignedInt와 toUnsignedLong 메서드를 제공
+      * 마찬가지로 Integer 클래스에도 toUnsignedLong 정적 메서드 추가됨
+    * Double과 Float 클래스에는 인수가 유한 소수점인지 검사하는 정적 메서드 isFinite가 추가됨
+    * Boolean 클래스에는 두 불리언 값에 and, or, xor 연산을 적용하는 메서드 logicalAnd, logicalOr, logicalXor이 추가됨
+    * BigInteger 클래스에는 BigInteger를 다양한 기본형으로 바꿀 수 있는  
+      byteValueExact, shortValueExact, intValueExact, longValueExact 메서드 추가됨
+      * 그러나 변환 과정에서 정보 손실이 발생하면 산술 연산 예외가 발생함
+
+* Math
+  * Math 클래스에는 연산 결과에 오버플로가 발생했을 때 산술 예외를 발생시키는  
+    addExact, subtractExact, multiplyExact, incrementExact, decrementExact, negateExact 등의 메서드가 추가됨  
+    int와 long을 인수로 받음
+  * 또한 long을 int로 변경하는 정적 메서드 toIntExact, floorMod, floorDiv, nextDonw 등의 정적 메서드도 추가됨
+
+### Files
+* Files 클래스에는 파일에서 스트림을 만들 수 있는 기능이 추가됨
+  * 파일을 스트림으로 게으르게 읽을 수 있는 기능을 제공하는 Files.lines 정적 메서드 등
+  * 그 외 스트림을 반환하는 정적 메서드
+    * Files.list
+      * 주어진 디렉터리의 개체를 포함하는 ``` Stream<Path> ```를 생성
+      * 이 과정은 재귀가 아님
+      * 스트림은 게으르게 소비되므로 특히 큰 디렉터리를 처리할 때 유용한 메서드
+    * Files.walk
+      * Files.list와 마찬가지로 주어진 디렉터리의 개체를 포함하는 ``` Stream<Path> ```를 생성
+      * 이 과정은 재귀적으로 실행되며 깊이 수준을 설정할 수 있음
+      * 깊이 우선(depth-first)방식으로 탐색을 수행함
+    * Files.find
+      * 디렉터리를 재귀적으로 탐색하면서 주어진 프레디케이트와 일치하는 개체를 찾아서 ``` Stream<Path> ```를 생성
+
+### 리플렉션
+* 리플렉션 API에서 이름, 변경자 등의 메서드 파라미터 정보를 사용할 수 있게 됨
+* java.lang.reflect.Parameter라는 클래스가 새로 추가되었는데 Method와 Constructor의 공통 기능을 제공하는 슈퍼클래스 역할을 하는  
+  java.lang.reflect.Executable에서 java.lang.reflect.Parameter를 참조
+
+### String
+* String 클래스에는 구분 기호(delimiter)로 문자열을 연결(join)할 수 있는 join이라는 새로운 정적 메서드가 추가됨
+  * join 메서드 활용 예제
+    ```
+    String authors = String.join(", ", "Raoul", "Mario", "Alan");
+    System.out.println(authors);  // Raoul, Mario, Alan
+    ```
+---
