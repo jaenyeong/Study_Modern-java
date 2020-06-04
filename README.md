@@ -13038,3 +13038,135 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
   * 어느 쪽이 성능이 좋은지 판단하는 가장 좋은 방법은 '직접 측정'
 * 이 예제는 람다 표현식의 유연성과 기존의 기능을 약간 응용하고 활용하면 자바 API에서 제공하지 않는 기능을 직접 구현할 수 있다는 것을 보여줌
 ---
+
+## APPENDIX D : 람다와 JVM 바이트코드
+
+### 익명 클래스
+* 익명 클래스로 함수형 인터페이스를 구현할 수 있음
+* 람다 표현식은 함수형 인터페이스의 추상 구현을 제공하므로 자바 컴파일러가 컴파일을 할 때  
+  람다 표현식을 익명 클래스로 변환할 수 있다면 문제가 해결될 것 같지만 익명 클래스는 앱 성능에 악영향을 주는 특성을 포함함
+  * 컴파일러는 익명 클래스에 대응하는 새로운 클래스 파일을 생성함
+    * 보통 익명 클래스는 ClassName$1 등의 파일명을 갖는데 여기서 ClassName은 익명 클래스를 포함하는 클래스의 이름
+    * 클래스 파일을 사용하려면 먼저 각각의 클래스를 로드하고 검증하는 과정이 필요하므로 앱 스타트업의 성능에 악영향을 미침
+    * 람다를 익명 클래스로 변환한다면 람다 표현식에 대응하는 새로운 클래스 파일이 생성됨
+  * 새로운 익명 클래스는 클래스나 인터페이스의 새로운 서브 형식을 만듦
+    * Comparator를 표현하는 수백 개의 람다가 있다면 결국 수백 가지의 Comparator 서브형식이 생긴다는 의미
+    * 이와 같은 상황에서는 JVM 런타임 성능을 개선하기 어려울 수 있음
+
+### 바이트코드 생성
+* 자바 컴파일러는 자바 소스 파일을 자바 바이트코드로 컴파일함
+  * JVM은 생성된 바이트코드를 실행하면서 앱을 동작시킴
+  * 익명 클래스와 람다 표현식은 각기 다른 바이트코드 명령어로 컴파일 됨
+  * 다음의 명령어로 클래스 파일의 바이트코드와 상수 풀을 확인할 수 있음
+    ``` javap -c -v ClassName ```
+  * 자바 7 문법으로 Function 인터페이스의 인스턴스를 익명 내부 클래스로 구현
+    ```
+    public class InnerClass {
+    	Function<Object, String> f = new Function<Object, String>() {
+    		@Override
+    		public String apply(Object obj) {
+    			return obj.toString();
+    		}
+    	};
+    }
+    ```
+    * 익명 내부 클래스로 구현한 Function의 바이트 코드
+      ```
+       0: aload_0
+       1: invokespecial #1   // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: new           #2   // class (패키지명생략)/InnerClass$1
+       8: dup
+       9: aload_0
+      10: invokespecial #3   // Method (패키지명생략)/InnerClass$1."<init>":(Lcom/jaenyeong/appendix/D/InnerClass;)V
+      13: putfield       #4   // Field f:Ljava/util/function/Function;
+      16: return
+      ```
+      * 위 코드 내용 확인
+        * new라는 바이트코드 연산으로 InnerClass$1이라는 객체 형식을 인스턴스화
+          * 동시에 새로 생성한 객체 참조를 스택으로 푸시함
+        * dup 연산은 스택에 있는 참조를 복제
+        * 객체를 초기화하는 invokespecial 명령어로 값을 소비
+        * 스택의 톱(top)에는 여전히 객체 참조가 있으며 putfield 명령어로 객체 참조를 LambdaBytecode의 f1 필드에 저장함
+      * InnerClass$1은 컴파일러가 익명 클래스에 붙인 이름
+        * Function 인터페이스 구현 코드
+          ```
+          class InnerClass$1 implements java.util.function.Function<java.lang.Object, java.lang.String> {
+              final InnerClass this$0;
+              public java.lang.String apply(java.lang.Object);
+                  Code:
+                      0: aload_1
+                      1: invokevirtual #3 // Method java/lang/Object.toString:()Ljava/lang/String;
+                      4: areturn
+          }
+          ```
+
+### 구원투수 InvokeDynamic
+* 람다로 Function을 구현한 코드
+  ```
+  public class Lambda {
+      Function<Object, String> f = obj -> obj.toString();
+  }
+  ```
+  * 생성된 바이트코드 명령
+    ```
+     0: aload_0
+     1: invokespecial #1         // Method java/lang/Object."<init>":()V
+     4: aload_0
+     5: invokedynamic #2,  0     // InvokeDynamic #0:apply:()Ljava/util/function/Function;
+    10: putfield       #3         // Field f:Ljava/util/function/Function;
+    13: return
+    ```
+    * 결과적으로 람다 표현식은 익명 내부 클래스와는 다른 방식으로 컴파일됨
+      * 추가로 클래스를 생성하는 부분이 invokedynamic이라는 명령어로 대치되었음
+    * 위에서 사용한 invokedynamic은 원래 용도와는 조금 다른 의도를 가짐
+      * 예제에서는 invokedynamic으로 람다 표현식을 바이트코드로 변환하는 작업을 런타임까지 고의로 지연함
+      * 즉, 이 같은 방식으로 invokedynamic을 사용해 람다 표현식을 구현하는 코드의 생성을 런타임으로 미룰 수 있음
+      * 이러한 설계로 얻는 장점
+        * 람다 표현식의 바디를 바이트코드로 변환하는 작업이 독립적으로 유지됨
+          * 따라서 변환 작업이 동적으로 바뀌거나 나중에 JVM 구현에서 이를 더 최적화하거나 변환 작업을 고칠 수 있음
+          * 변환 작업은 독립적이므로 바이트코드의 과거버전 호환성을 염려할 필요가 없음
+        * 람다 덕분에 추가적인 필드나 정적 초기자 등의 오버헤드가 사라짐
+        * 상태 없는(캡처하지 않는) 람다에서 람다 객체 인스턴스를 만들고, 캐시하고, 같은 결과를 반환할 수 있음
+          * 자바 8 이전에도 이런 방식을 사용했음
+          * 예를 들어 정적 final 변수에 특정 Comparator 인스턴스를 선언할 수 있음
+        * 람다를 처음 실행할 때만 변환과 결과 연결 작업이 실행되므로 추가적인 성능 비용이 들지 않음
+          * 즉, 두 번째 호출부터는 이전 호출에서 연결된 구현을 바로 이용할 수 있음
+
+### 코드 생성 전략
+* 런타임에 생성된 정적 메서드에 람다 표현식의 바디를 추가하면 람다 표현식이 바이트코드로 변환됨
+  * 가장 간단하게 변환할 수 있는 람다 형식은 상태를 포함하지 않는 람다
+    * 자신을 감싸는 영역에서 상태를 캡처하지 않음
+  * 이 경우 컴파일러는 람다 표현식과 같은 시그니처를 갖는 메서드를 생성
+  * 다음은 변환 처리 결과를 논리적으로 보여줌
+    ```
+    public class Lambda {
+        Function<Object, String> f = [dynamic invocation of lambda$1]
+    
+        static String lambda$1(Object obj) {
+            return obj.toString();
+        }
+    }
+    ```
+  * final (또는 final에 준하는) 지역 변수나 필드를 캡처하는 다음과 같은 람다 표현식의 변환과정은 좀 더 복잡함
+    ```
+    public class Lambda {
+        String header = "This is a ";
+        Function<Object, String> f = obj -> header + obj.toString();
+    }
+    ```
+    * 이번에는 생성된 메서드에 람다를 감싸는 콘텍스트의 추가 상태를 전달할 인수가 필요하므로  
+      메서드의 시그니처와 람다 표현식이 시그니처와 일치하지 않음
+    * 가장 간단한 해결 방법은 람다 표현식의 인수에 캡처한 각 변수를 추가하는 것
+    * 위 예제의 람다 표현식을 다음처럼 변환
+      ```
+      public class Lambda {
+          String header = "This is a ";
+          Function<Object, String> f = [dynamic invocation of lambda$1]
+      
+          static String lambda$1(String header, Object obj) {
+              return obj -> header + obj.toString();
+          }
+      }
+      ```
+---
