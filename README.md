@@ -12762,3 +12762,279 @@ public Map<Boolean, List<Integer>> partitionPrimesWithCustomCollector(int n) {
     System.out.println(authors);  // Raoul, Mario, Alan
     ```
 ---
+
+## APPENDIX C : 스트림에 여러 연산 병렬로 실행하기
+* 스트림에서는 한 번만 연산을 수행할 수 있으므로 결과도 한 번만 얻을 수 있다는 것이 자바 8 스트림의 가장 큰 단점
+  * 스트림을 두 번 탐색하려 한다면 다음과 같은 에러 발생
+    ``` java.lang.IllegalStateException: stream has already been operated upon or closed ```
+  * 한 스트림에서 여러 결과를 얻어야 하는 상황이 있을 수 있음
+    * 예를 들어 로그 파일을 스트림으로 파싱해서 한 번에 여러 통계를 얻는 상황이 있을 수 있음
+    * 그러러면 한 번에 한 개 이상의 람다를 스트림으로 적용해야 함
+    * 즉 fork 같은 메서드를 이용해 스트림을 포크(분기)시키고 포크된 스트림에 다양한 함수를 적용해야 함
+    * 심지어 여러 연산을 각각의 스레드에서 병렬로 실행할 수 있다면 더 좋을 것
+    * 안타깝게도 자바 8 스트림에서는 이 기능을 제공하지 않음
+      * Spliterator(특히 늦은 바인딩 기능을 활용), BlockingQueue, Future를 이용하여 직접 편리한 API로 만듦
+
+### 스트림 포킹
+* 스트림에서 여러 연산을 병렬로 실행하려면 먼저 원래 스트림을 감싸면서 다른 동작을 정의할 수 있도록 StreamForker를 만들어야 함
+  * 예제 코드
+    ```
+    public class StreamForker<T> {
+    	private final Stream<T> stream;
+    	private final Map<Object, Function<Stream<T>, ?>> forks = new HashMap<>();
+    
+    	public StreamForker(Stream<T> stream) {
+    		this.stream = stream;
+    	}
+    
+    	public StreamForker<T> fork(Object key, Function<Stream<T>, ?> f) {
+    		forks.put(key, f); // 스트림에 적용할 함수 저장
+    		return this;       // 유연하게 fork 메서드를 여러 번 호출할 수 있도록 this 반환
+    	}
+    
+    	public Results getResults() {
+    		// TODO
+    	}
+    }
+    ```
+    * fork는 두 인수를 받음
+      * 스트림을 특정 연산의 결과 형식으로 변환하는 Function
+      * 연산의 결과를 제공하는 키, 내부 맵에 키/함수 쌍 저장
+    * fork 메서드는 StreamForker 자신을 반환
+      * 따라서 여러 연산을 포킹(forking:분기)해서 파이프라인을 만들 수 있음
+    * 여기서 사용자는 스트림에서 세 가지 키로 인덱스된 세 개의 동작을 정의함
+      * StreamForker는 원래 스트림을 탐색하면서 세 개의 스트림으로 포크시킴
+      * 이제 포크된 스트림에 세 연산을 병렬로 적용할 수 있으며 결과 맵에 각 키의 인덱스를 이용해 함수 적용 결과를 얻을 수 있음
+      * getResults 메서드를 호출하면 fork 메서드로 추가한 모든 연산이 실행됨
+      * getResults는 다음과 같은 Results 인터페이스의 구현을 반환
+        ```
+        public static interface Results {
+            public <R> R get(Object key);
+        }
+        ```
+        * Results 인터페이스는 fork 메서드에서 사용하는 key 객체를 받는 하나의 메서드 정의를 포함
+        * 이 메서드는 키에 대응하는 연산 결과를 반환
+
+* ForkingStreamConsumer로 Results 인터페이스 구현하기
+  * getResults 메서드 구현
+    ```
+    public Results getResults() {
+        ForkingStreamConsumer<T> consumer = build();
+        try {
+            stream.sequential().forEach(consumer);
+        } finally {
+            consumer.finish();
+        }
+        return consumer;
+    }
+    ```
+    * ForkingStreamConsumer는 Results 인터페이스와 Consumer 인터페이스를 구현
+      * 스트림의 모든 요소를 소비해서 for 메서드로 전달된 연산 수 만큼의 BlockingQueue로 분산시키는 것이  
+        ForkingStreamConsumer의 주요 역할
+      * forEach 메서드를 병렬 스트림에 수행하면 큐에 삽입되는 요소의 순서가 흐트러질 수 있으므로 스트림을 순차로 처리하도록 지시
+      * finish 메서드는 더 이상 처리할 항목이 없음을 지시하는 특별한 요소를 추가
+      * build 메서드로 ForkingStreamConsumer를 만들 수 있음
+        ```
+        private ForkingStreamConsumer<T> build() {
+            // 각각의 연산을 저장할 큐 리스트 생성
+            List<BlockingQueue<T>> queues = new ArrayList<>();
+    
+            // 연산 결과를 포함하는 Future 연산을 식별할 수 있는 키에 대응시켜 맵에 저장
+            Map<Object, Future<?>> actions =
+                    forks.entrySet()
+                            .stream()
+                            .reduce(
+                                    new HashMap<Object, Future<?>>(),
+                                    (map, e) -> {
+                                        map.put(e.getKey(),
+                                                getOperationResult(queues, e.getValue()));
+                                        return map;
+                                    },
+                                    (m1, m2) -> {
+                                        m1.putAll(m2);
+                                        return m1;
+                                    });
+    
+            return new ForkingStreamConsumer<>(queues, actions);
+        }
+        ```
+        * 먼저 이전에 설명한 BlockingQueue의 리스트를 만듦
+        * 스트림에서 실행할 다양한 동작을 식별할 수 있는 키와 대응하는 연산 결과를 포함하는 Future를 값으로 포함하는 맵을 만듦
+        * BlockingQueue의 List와 Future의 Map을 ForkingStreamConsumer 생성자로 전달
+        * getOperationResult 메서드로 각각의 Future를 만듦
+          ```
+          private Future<?> getOperationResult(List<BlockingQueue<T>> queues, Function<Stream<T>, ?> f) {
+              BlockingQueue<T> queue = new LinkedBlockingQueue<>();
+            
+              // 큐를 만들어 큐 리스트에 추가
+              queues.add(queue);
+              // 큐의 요소를 탐색하는 Spliterator
+              Spliterator<T> spliterator = new BlockingQueueSpliterator<>(queue);
+              // Spliterator를 소스로 갖는 스트림을 생성
+              Stream<T> source = StreamSupport.stream(spliterator, false);
+              // 스트림에서 주어진 함수를 비동기로 적용해서 결과를 얻을 Future 생성
+              return CompletableFuture.supplyAsync(() -> f.apply(source));
+          }
+          ```
+
+* ForkingStreamConsumer, BlockingQueueSpliterator 구현하기
+  * ForkingStreamConsumer 구현 코드
+    ```
+    class ForkingStreamConsumer<T> implements Consumer<T>, Results {
+    	static final Object END_OF_STREAM = new Object();
+    
+    	private final List<BlockingQueue<T>> queues;
+    	private final Map<Object, Future<?>> actions;
+    
+    	ForkingStreamConsumer(List<BlockingQueue<T>> queues, Map<Object, Future<?>> actions) {
+    		this.queues = queues;
+    		this.actions = actions;
+    	}
+    
+    	@Override
+    	public <R> R get(Object key) {
+    		try {
+    			// 키에 대응하는 동작의 결과를 반환, Future의 계산 완료 대기
+    			return ((Future<R>) actions.get(key)).get();
+    		} catch (Exception e) {
+    			throw new RuntimeException(e);
+    		}
+    	}
+    
+    	@Override
+    	public void accept(T t) {
+    		// 스트림에서 탐색한 요소를 모든 큐로 전달
+    		queues.forEach(q -> q.add(t));
+    	}
+    
+    	void finish() {
+    		// 스트림의 끝을 알리는 마지막 요소를 큐에 삽입
+    		accept((T) END_OF_STREAM);
+    	}
+    }
+    ```
+    * ForkingStreamConsumer 클래스는 Consumer 인터페이스와 Results 인터페이스를 구현하며,  
+      BlockingQueue의 List 참조와 스트림에 다양한 연산을 수행하는 Future의 Map 참조를 유지함
+    * Consumer 인터페이스는 accept 메서드를 정의함
+      * ForkingStreamConsumer가 스트림 요소를 받을 때마다 요소를 BlockingQueue로 추가
+      * 그리고 기존 스트림의 모든 요소를 큐에 추가한 다음에는 finish 메서드를 호출해서 마지막 요소를 추가
+      * BlockingQueueSpliterator가 큐의 마지막 요소를 확인하는 순간 더 이상 처리할 요소가 없음을 판단할 수 있음
+    * Result 인터페이스는 get 메서드를 정의
+      * get 메서드는 인수 키로 맵에서 Future를 가져온 다음에 값을 언랩하거나 값이 없으면 결과를 기다림
+    * 마지막으로 스트림에서 수행될 각 연산에 대한 BlockingQueueSpliterator를 구현해야 함
+      * 각 BlockingQueueSpliterator는 ForkingStreamConsumer에서 만든 BlockingQueue의 참조 중 하나를 포함
+  * BlockingQueueSpliterator 구현 코드
+    ```
+    class BlockingQueueSpliterator<T> implements Spliterator<T> {
+    	private final BlockingQueue<T> q;
+    
+    	public BlockingQueueSpliterator(BlockingQueue<T> q) {
+    		this.q = q;
+    	}
+    
+    	@Override
+    	public boolean tryAdvance(Consumer<? super T> action) {
+    		T t;
+    		while (true) {
+    			try {
+    				t = q.take();
+    				break;
+    			} catch (InterruptedException e) {
+    			}
+    		}
+    
+    		if (t != ForkingStreamConsumer.END_OF_STREAM) {
+    			action.accept(t);
+    			return true;
+    		}
+    
+    		return false;
+    	}
+    
+    	@Override
+    	public Spliterator<T> trySplit() {
+    		return null;
+    	}
+    
+    	@Override
+    	public long estimateSize() {
+    		return 0;
+    	}
+    
+    	@Override
+    	public int characteristics() {
+    		return 0;
+    	}
+    }
+    ```
+    * 위 코드에서는 스트림을 어떻게 분할할지는 정의하지 않고 늦은 바인딩 기능만 활용하도록 Spliterator를 정의
+      * 따라서 trySplit은 구현하지 않음
+    * 큐에서 몇 개의 요소를 가져올 수 있는지 미리 알 수 없으므로 estimatedSized값은 큰 의미가 없음
+      * 또한 분할을 하지 않은 상황이므로 estimatedSized값을 활용하지도 않음
+      * 위 예제에서는 Spliterator 특성을 사용하지 않으므로 characteristic 메서드는 0을 반환
+    * 예제에서는 tryAdvance 메서드만 구현
+      * ForkingStreamConsumer가 원래의 스트림에서 추가한 요소를 BlockingQueue에서 가져옴
+      * 이렇게 가져온 요소를 다음 스트림 소스로 사용할 수 있도록 Consumer로 보냄
+      * getOperationResult에서 생성한 Spliterator에서 요소를 보낼 Consumer를 결정하며,  
+        fork 메서드로 전달된 함수를 새로 만든 스트림에 적용함
+      * tryAdvance 메서드는 ForkingStreamConsumer가 (더 이상 큐에 처리할 요소가 없음을 알릴 목적으로)  
+        추가한 특별한 객체를 발견하기 전까지 true를 반환하며 소비할 다른 요소가 있음을 알림
+  * StreamForker는 스트림에 수행할 각 연산을 포함하는 맵을 포함
+    * 맵의 인덱스는 키, 값은 수행할 함수
+    * ForkingStreamConsumer는 이들 연산을 저장할 큐를 가지고 있으며 원래 스트림에서 모든 요소를 소비해서 모든 큐로 요소를 분산시킴
+    * 각 큐는 항목을 가져오면서 다른 스트림의 소스 역할을 하는 BlockingQueueSpliterator를 포함하고 있음
+    * 마지막으로 원래 스트림에서 포크된 각 스트림은 함수의 인수로 전달되며 각각 수행해야 할 연산을 실행함
+
+* StreamForker 활용
+  * 4장의 메뉴 데이터 모델을 다시 정의
+  * 네 개의 연산을 병렬로 수행할 수 있도록 원래 스트림을 포킹
+  * 모든 요리명을 콤마로 분리한 리스트를 만들고, 메뉴의 총 칼로리를 계산하고, 가장 칼로리가 높은 요리를 찾고, 요리를 종류별로 그룹화하는 연산 수행
+  * StreamForker 활용 코드
+    ```
+    Stream<Dish> menuStream = menu.stream();
+    
+    Results results = new StreamForker<Dish>(menuStream)
+            .fork("shortMenu",
+                    s -> s.map(Dish::getName).collect(joining(", ")))
+            .fork("totalCalories",
+                    s -> s.mapToInt(Dish::getCalories).sum())
+            .fork("mostCaloricDish",
+    				s -> s.collect(reducing((d1, d2) -> d1.getCalories() > d2.getCalories() ? d1 : d2)).get())
+            .fork("dishesByType",
+                    s -> s.collect(groupingBy(Dish::getType)))
+            .getResults();
+
+    String shortMenu = results.get("shortMenu");
+    int totalCalories = results.get("totalCalories");
+    Dish mostCaloricDish = results.get("mostCaloricDish");
+    Map<Dish.Type, List<Dish>> dishesByType = results.get("dishesByType");
+
+    System.out.println("Short menu: " + shortMenu);
+    System.out.println("Total calories: " + totalCalories);
+    System.out.println("Most caloric dish: " + mostCaloricDish);
+    System.out.println("Dishes by type: " + dishesByType);
+    ```
+    * StreamForker는 스트림을 포크하고 포크된 스트림에 다른 연산을 할당할 수 있도록 편리하고 유연한 API를 제공
+      * 각각의 연산은 스트림에 함수를 적용하는 형식으로 되어 있는데, 이 연산을 객체로 식별할 수 있음
+      * 위 예제에서는 문자열로 연산을 식별함
+      * 더 포크할 스트림이 없으면 StreamForker에 getResults를 호출해서 정의한 연산을 모두 수행하고 Results를 얻을 수 있음
+      * 내부에서는 연산을 비동기적으로 실행하므로 getResults 메서드를 호출하면 결과를 기다리는 것이 아니라 즉시 반환됨
+    * Results 인터페이스에 키를 전달해서 특정 연산의 결과를 얻을 수 있음
+      * 연산 결과가 끝난 상황이라면 get 메서드가 결과를 반환하며, 아직 연산이 끝나지 않았으면 결과가 나올때까지 호출이 블록됨
+      * 결과
+        ```
+        Short menu: pork, beef, chicken, french fries, rice, season fruit, pizza, prawns, salmon
+        Total calories: 4300
+        Most caloric dish: pork
+        Dishes by type: {MEAT=[pork, beef, chicken], 
+                         FISH=[prawns, salmon], 
+                         OTHER=[french fries, rice, season fruit, pizza]}
+        ```
+
+### 성능 문제
+* 위 방법이 스트림을 여러 번 탐색하는 방식에 비해 성능이 더 좋다고 할 수 없음
+  * 특히 메모리에 있는 데이터로 스트림을 만든 상황에서는 블록 큐를 사용하면서 발생하는 오버헤드가 병렬 실행으로 인한 이득보다 클 수 있음
+* 반대로 아주 큰 파일을 스트림으로 사용하는 등 비싼 I/O 동작을 수행하는 상황에서는 한 번만 스트림을 활용하는 것이 더 좋은 선택일 수 있음
+  * 어느 쪽이 성능이 좋은지 판단하는 가장 좋은 방법은 '직접 측정'
+* 이 예제는 람다 표현식의 유연성과 기존의 기능을 약간 응용하고 활용하면 자바 API에서 제공하지 않는 기능을 직접 구현할 수 있다는 것을 보여줌
+---
